@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **LG (webOS) and Samsung (Tizen):** EndGrid iQTV+ as a native web app, with the Top Shelf design: the iQTV+ top bar
+  and glass navigation, the featured title with logo art and Open / More Info / Not for me, Your Apps, and rows from
+  TMDB in your content languages; All Apps with the TV's inputs; Search; Settings typed on the TV (TMDB key, region,
+  languages, name). It runs as an app, not as the TV's home screen. `./webos/build.sh` makes the `.ipk` and
+  `./webos/install.sh` installs it through LG's Developer Mode; `./tizen/build.sh` makes the `.wgt` (`--sign` with
+  Samsung's tools) and `java tizen/Install.java` installs it. JDK and bash only; `--public` builds carry no keys or
+  personal settings. Not yet tried on a real LG or Samsung TV: see [docs/LG-SAMSUNG.md](docs/LG-SAMSUNG.md).
+
 ## 1.0.0 — the first release from EndGrid Labs
 
 EndGrid iQTV+: a cinematic, ad-free home screen for Google TV and Android TV.

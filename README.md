@@ -45,8 +45,9 @@ sit right under it. Open source, private, and one button to go back to the TV's 
 **[docs/INSTALL.md](docs/INSTALL.md)** (Downloader app, USB drive or adb). Then paste your free TMDB key in
 *Settings › Personalize › Recommendations*.
 
-**LG or Samsung TV?** They don't run Android apps; see **[docs/LG-SAMSUNG.md](docs/LG-SAMSUNG.md)** for the way to
-get EndGrid iQTV+ on them with a Google TV streamer.
+**LG or Samsung TV?** They don't run Android apps. **[docs/LG-SAMSUNG.md](docs/LG-SAMSUNG.md)** has two ways: a
+Google TV streamer on HDMI (the full home screen), or the native web app for webOS and Tizen (`./webos/build.sh`,
+`./tizen/build.sh`), which brings the same Top Shelf design and rows but runs as an app, not as the TV's home screen.
 
 ### Build it yourself
 
@@ -158,6 +159,9 @@ To remove it for good, switch to *Original* first, then uninstall *EndGrid iQTV+
 - **It uses the TV's own ADB, from inside the TV**, to become the home screen (`cmd package set-home-activity`), set the
   screensaver and grant itself the watch-history permissions. Nothing listens to the network.
 - **Drawn by hand on a Canvas**, layer by layer, with springs for every movement.
+- **On LG and Samsung, the same Top Shelf in plain HTML, CSS and ES5 JavaScript** ([`web/`](web)), packed into an LG
+  `.ipk` and a Samsung `.wgt` by [`webos/build.sh`](webos/build.sh) and [`tizen/build.sh`](tizen/build.sh) (JDK only,
+  no LG or Samsung tools); see [docs/LG-SAMSUNG.md](docs/LG-SAMSUNG.md#for-developers).
 
 | File | Role |
 |---|---|
@@ -203,7 +207,9 @@ Validated on a OnePlus TV (Android 11). Other Google TV and Android TV devices a
 - This product uses the TMDB API but is not endorsed or certified by [TMDB](https://www.themoviedb.org/).
 - Weather data by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0). Title links by [Watchmode](https://api.watchmode.com/).
 - Icons: [Material Symbols](https://fonts.google.com/icons) (Apache 2.0). Font: [Inter](https://rsms.me/inter/) (SIL OFL 1.1).
-- Not affiliated with Apple, Google or any streaming service. App names and logos belong to their owners.
+- On Samsung TVs, the release installs with [TizenBrew Installer](https://github.com/reisxd/TizenBrewInstaller) by
+  [@reisxd](https://github.com/reisxd). App logos on LG and Samsung: [Simple Icons](https://simpleicons.org) (CC0).
+- Not affiliated with Apple, Google, LG, Samsung or any streaming service. App names and logos belong to their owners.
 
 See [PRIVACY.md](PRIVACY.md) for what is stored and where, and [CONTRIBUTING.md](CONTRIBUTING.md) to help.
 

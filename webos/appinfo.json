@@ -1,0 +1,15 @@
+{
+  "id": "in.endgrid.iqtv",
+  "version": "1.0.0",
+  "vendor": "EndGrid Labs",
+  "type": "web",
+  "main": "index.html",
+  "title": "EndGrid iQTV+",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "iconColor": "#0A1A44",
+  "resolution": "1920x1080",
+  "handlesRelaunch": true,
+  "disableBackHistoryAPI": true,
+  "requiredPermissions": ["applications", "applications.launcher"]
+}
