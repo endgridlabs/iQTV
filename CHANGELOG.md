@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.1.0 — smoother, and easier to browse
+
+- **No more freezes:** the home screen no longer stops for 8–9 seconds every minute (remote presses were lost); it
+  also gives memory back while an app like YouTube is in front, so apps are less likely to be closed by the TV.
+- **Your Apps first:** right under the featured title on Home, above Continue Watching, always on the first screen.
+- **Browse the featured titles with the remote:** ← / → past the buttons go to the previous or next title; the
+  carousel waits while you use the remote.
+- **A real mix:** Home's featured titles alternate movies and shows and take turns between your streaming apps
+  (Prime Video and ZEE5 first unless you set your own order); Movies and TV Shows keep only their kind.
+- **Highlights without rows:** the featured titles stay on Home, Movies and TV Shows even with every row turned off.
+- **Settings › Personalize › Recommendations › Refresh now:** the newest titles at once (it also updates by itself
+  about three times a day).
+- **OnePlus TVs:** OnePlus Connect, HeyTap push messages, Smart Home, the OnePlus screensaver and weather, remote
+  diagnostics and the user guide are turned off in iQTV+ mode (Original brings them back); the remote, updates and
+  Live TV are untouched. The remote's ☰ button opens the TV's settings from Home.
+
 ## 1.0.0 — the first release from EndGrid Labs
 
 EndGrid iQTV+: a cinematic, ad-free home screen for Google TV and Android TV.
