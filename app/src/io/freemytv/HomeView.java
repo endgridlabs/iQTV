@@ -561,6 +561,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     /** Starting state (Home pressed while the home screen is showing): first app focused, drawer and sheet closed. */
     void reset(boolean animated) {
         wake();
+        untouched = true;
         cancelReorder(!animated);
         zone = Z_SHELF;
         shelfIndex = 0;
@@ -2244,6 +2245,12 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     boolean onKey(KeyEvent e) {
         wake();
+        untouched = false;
+        if (TOP_SHELF && running) {
+            // The carousel moves on by itself only while the remote rests: every press starts its wait over.
+            handler.removeCallbacks(rotateHero);
+            handler.postDelayed(rotateHero, HERO_ROTATE_MS);
+        }
         boolean down = e.getAction() == KeyEvent.ACTION_DOWN;
         if (reordering) return reorderKey(e, down);
         int code = e.getKeyCode();
@@ -3617,6 +3624,12 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         Row row = zone == Z_CARDS ? focusedRow() : null;
         Recs.Pick p = row != null && !row.items.isEmpty() ? row.items.get(row.index) : featuredPick();
         setShelfPick(p, false);
+        // Started before the titles had loaded (no buttons yet: the focus went to the navigation): once the first title
+        // is there, and until a key is pressed, the focus goes to its main button, as Home does.
+        if (untouched && zone == Z_TABS && actionCount() > 0) {
+            zone = Z_ACTIONS;
+            actionIndex = 0;
+        }
         updateShelfImage();
         preloadRows();
         retarget(false);
@@ -3627,6 +3640,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     // MARK: The featured carousel (the hero while the focus is at the top)
 
     private int heroIndex;
+    /** No key pressed since the home screen started or Home was pressed (updateRows may still place the focus). */
+    private boolean untouched = true;
     /** Every row for the chosen tab, including the ones turned off in Settings (updateRows): the carousel's source. */
     private final List<Recs.Section> heroSources = new ArrayList<>();
 
@@ -3674,6 +3689,23 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             wake();
         }
     };
+
+    /**
+     * ←/→ past the hero's buttons: the previous or next featured title, at once. The carousel's timer starts over, so
+     * it doesn't move on right after a press.
+     */
+    private boolean stepHero(int dir) {
+        List<Recs.Pick> f = featured();
+        if (f.size() < 2) return true;
+        heroIndex = ((heroIndex + dir) % f.size() + f.size()) % f.size();
+        setShelfPick(f.get(heroIndex), true);
+        updateShelfImage();
+        recs.full(f.get((heroIndex + dir + f.size()) % f.size()));   // the one after, ready
+        handler.removeCallbacks(rotateHero);
+        handler.postDelayed(rotateHero, HERO_ROTATE_MS);
+        wake();
+        return true;
+    }
 
     /** Back to the top of the screen: the hero shows the featured title again. */
     private void showFeatured() {
@@ -3806,11 +3838,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         long up = SystemClock.uptimeMillis();
         float a = (shelfTextAt == 0 ? 1 : smoothstep(0, 1, (up - shelfTextAt) / (float) SHELF_TEXT_MS)) * heroAlpha();
         if (shelfPick != null && a > 0.01f) drawHero(c, shelfPick, a, (1 - a) * 14 * k);
-        if (rows.isEmpty()) {
+        if (rows.isEmpty() && Recs.anyRowOn()) {   // with the rows turned off, nothing to explain
             sRowLabel.setAlpha(0xCC);
-            String why = !Recs.anyRowOn() ? Ui.tr("The rows are off: turn them on in Settings › Home Rows.")
-                    : Ui.tr("Nothing here yet: the picks load from TMDB in the background.");
-            c.drawText(why, MARGIN * k, stackTop(1) + 30 * k, sRowLabel);
+            c.drawText(Ui.tr("Nothing here yet: the picks load from TMDB in the background."), MARGIN * k, stackTop(1) + 30 * k, sRowLabel);
         }
         // The rows that show: the label, the cards (the focused one last: it grows over its neighbors).
         for (int r = 1; r <= rows.size(); r++) {
@@ -4229,8 +4259,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 break;
             case Z_ACTIONS:
                 if (dx != 0) {
-                    int next = Math.max(0, Math.min(actionCount() - 1, actionIndex + dx));
-                    if (next == actionIndex) return true;
+                    int next = actionIndex + dx;
+                    // Past the first or last button: the previous or next featured title.
+                    if (next < 0 || next >= actionCount()) return stepHero(dx);
                     actionIndex = next;
                 } else if (dy < 0) {
                     zone = Z_TABS;
