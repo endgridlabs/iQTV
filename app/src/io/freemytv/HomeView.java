@@ -888,7 +888,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         show(status, top, lift);
         show(platter, home, lift);
         if (TOP_SHELF) {
-            // Your Apps is the dock layer, moved (not redrawn) to sit under Continue Watching as the stack scrolls; it fades
+            // Your Apps is the dock layer, moved (not redrawn) to sit under the hero as the stack scrolls; it fades
             // under the top bar like the rows, and while More Info is open. No round buttons: the top bar has them.
             float shown = 1 - Ui.clamp(info.value);
             dockMotion(dockAt);
@@ -3341,7 +3341,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     //
     // The screen, top to bottom (1920 × 1080 layout): the top bar (EndGrid iQTV+, the glass navigation, your initial and
     // the time); the hero (label, the title's logo art or name, year • language • genre • length, two lines of
-    // description, Watch Now / More Info / Not for me, the carousel's dots); the rows; Your Apps (the dock, after Continue Watching). The
+    // description, Watch Now / More Info / Not for me, the carousel's dots); Your Apps (the dock); the rows. The
     // focused title's photo fills the screen behind it all (drawShelfSky). Going down into the rows, the focused row
     // stays where the first one sits and the hero fades out above it, as on tvOS.
 
@@ -3429,7 +3429,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         return a == ACT_INFO ? "apps" : a == ACT_HIDE ? "not_interested" : "play";
     }
 
-    // MARK: The stack: Continue Watching, Your Apps, then the other rows
+    // MARK: The stack: Your Apps, then the rows (Continue Watching first)
 
     /** Popular and Latest show posters (2:3), as the tvOS rows of a kind do; the others landscape art (16:9). */
     private static boolean posterRow(Row row) {
@@ -3444,9 +3444,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         return (H_CARD_DY + H_TEXT_H + H_ROW_GAP) * k + cardH(row);
     }
 
-    /** How many rows come before Your Apps: Continue Watching when there is one, so the apps are a press or two away. */
+    /** How many rows come before Your Apps: none, so the apps are always on Home's first screen, one press down. */
     private int dockAfter() {
-        return !shelf.isEmpty() && !rows.isEmpty() && rows.get(0).id.equals("continue") ? 1 : 0;
+        return 0;
     }
 
     /** How tall Your Apps is with its label, its tiles and their names. */
@@ -4246,7 +4246,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                         focusRow(true);
                     }
                 } else if (stackIndex == dockAfter() && !shelf.isEmpty()) {
-                    zone = Z_SHELF;      // Your Apps, under Continue Watching
+                    zone = Z_SHELF;      // Your Apps
                 } else if (stackIndex < rows.size()) {
                     stackIndex++;
                     focusRow(true);

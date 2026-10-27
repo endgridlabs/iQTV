@@ -23,7 +23,7 @@ sit right under it. Open source, private, and one button to go back to the TV's 
   Settings), your initial and the clock. The featured title fills the screen with its logo art (or name), year,
   language, genre, length and service, a short description, and **Open *app*** (or **Watch Now** when a title link
   exists), **More Info** and **Not for me**. It rotates through your recommendations.
-- **Continue Watching**, then **Your Apps** a press or two from the top, then rows in your languages: Trending Now,
+- **Your Apps** right under the featured title, then **Continue Watching** and rows in your languages: Trending Now,
   Popular and Latest movies (posters), TV Shows, Web Series, Recommended for *you*, a row per genre you like,
   Recently Watched and New Releases. Each row on or off, in your order.
 - **Only real availability.** A title shows only when TMDB's watch-provider data (from JustWatch) lists it as streaming
