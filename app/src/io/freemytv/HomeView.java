@@ -3358,7 +3358,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private static final float H_ROWS_TOP = 762, H_CARD_DY = 46, H_CARD_W = 320, H_CARD_H = 180, H_POSTER_W = 190,
             H_POSTER_H = 285, H_CARD_GAP = 30, H_TEXT_H = 76, H_ROW_GAP = 40, H_ROW_FADE_TOP = 150, H_ROW_FADE = 140;
     private static final long HERO_ROTATE_MS = 9000;
-    private static final int HERO_FEATURED = 5;
+    private static final int HERO_FEATURED = 8;
 
     /** The navigation's items: three filters of the rows, then Apps (All Apps), Search and Settings. */
     private static String[] shelfTabs() {
@@ -3610,6 +3610,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             Recs.Section shown = forTab(s);
             if (shown != null && !shown.items.isEmpty()) heroSources.add(shown);
         }
+        featuredNow = makeFeatured();
+        if (heroIndex >= featuredNow.size()) heroIndex = 0;
         if (focusedRow != null) {
             int was = stackIndex;
             stackIndex = 0;
@@ -3645,26 +3647,67 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     /** Every row for the chosen tab, including the ones turned off in Settings (updateRows): the carousel's source. */
     private final List<Recs.Section> heroSources = new ArrayList<>();
 
-    /**
-     * The titles the carousel goes through: the first ones with artwork of the most personal row there is (yours,
-     * then your languages'), never what you already watched, nor the worldwide lists unless nothing else has any.
-     * From every row, so the highlights stay with the rows turned off.
-     */
+    /** The carousel's titles for the chosen tab (makeFeatured, from updateRows). */
+    private List<Recs.Pick> featuredNow = new ArrayList<>();
+
     private List<Recs.Pick> featured() {
-        List<Recs.Pick> out = new ArrayList<>();
+        return featuredNow;
+    }
+
+    /** Streaming services first in the carousel unless Settings > Streaming Apps gives an order of your own. */
+    private static final String[] HERO_FIRST = {"prime", "zee5"};
+
+    /**
+     * The titles the carousel goes through, from every row (on or off), never what you already watched: the services
+     * take turns (your order in Settings > Streaming Apps, else Prime Video and ZEE5 first, then the rest), so one
+     * app's list doesn't fill it; on Home a movie and a show alternate (Movies and TV Shows have only theirs). The most
+     * personal rows come first within each service: yours, your languages', then the worldwide lists.
+     */
+    private List<Recs.Pick> makeFeatured() {
+        // Candidates, by service, in the rows' order of preference.
+        Map<String, List<Recs.Pick>> byService = new java.util.LinkedHashMap<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        List<Recs.Section> ordered = new ArrayList<>();
         for (String id : new String[] {"featured", "popular", "latest", "web", "shows", "trending", "new"}) {
-            for (Recs.Section r : heroSources) {
-                if (!r.id.equals(id)) continue;
-                for (Recs.Pick p : r.items) if (p.backdrop != null && out.size() < HERO_FEATURED) out.add(p);
+            for (Recs.Section s : heroSources) if (s.id.equals(id)) ordered.add(s);
+        }
+        for (Recs.Section s : heroSources) {
+            if (!ordered.contains(s) && !s.id.equals("continue") && !s.id.equals("recent") && !s.id.equals("search")) ordered.add(s);
+        }
+        for (Recs.Section s : ordered) {
+            for (Recs.Pick p : s.items) {
+                if (p.backdrop == null || !seen.add(Recs.key(p))) continue;
+                String svc = p.app == null ? "" : p.app;
+                List<Recs.Pick> list = byService.get(svc);
+                if (list == null) byService.put(svc, list = new ArrayList<>());
+                list.add(p);
             }
-            if (!out.isEmpty()) return out;
         }
-        for (Recs.Section r : heroSources) {
-            if (r.id.equals("continue") || r.id.equals("recent")) continue;
-            for (Recs.Pick p : r.items) if (p.backdrop != null && out.size() < HERO_FEATURED) out.add(p);
-            if (!out.isEmpty()) break;
+        List<String> services = new ArrayList<>();
+        List<String> order = Prefs.serviceOrder();
+        for (String svc : order.isEmpty() ? java.util.Arrays.asList(HERO_FIRST) : order) if (byService.containsKey(svc)) services.add(svc);
+        for (String svc : byService.keySet()) if (!services.contains(svc)) services.add(svc);
+        // Round after round, one title per service; on Home, the other kind than the last one when the service has it.
+        List<Recs.Pick> out = new ArrayList<>();
+        boolean mix = shelfTab == TAB_HOME;
+        String last = null;
+        boolean any = true;
+        while (out.size() < HERO_FEATURED && any) {
+            any = false;
+            for (String svc : services) {
+                if (out.size() >= HERO_FEATURED) break;
+                List<Recs.Pick> list = byService.get(svc);
+                if (list.isEmpty()) continue;
+                int at = 0;
+                if (mix && last != null) {
+                    for (int i = 0; i < list.size(); i++) if (!last.equals(list.get(i).kind)) { at = i; break; }
+                }
+                Recs.Pick p = list.remove(at);
+                out.add(p);
+                last = p.kind;
+                any = true;
+            }
         }
-        if (out.isEmpty()) for (Recs.Section r : heroSources) for (Recs.Pick p : r.items) if (p.backdrop != null && out.size() < 1) out.add(p);
         return out;
     }
 
