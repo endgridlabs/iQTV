@@ -97,6 +97,15 @@ final class HomeMode {
         // HY300 projectors (Amlogic txhd2, Android 13): JmLauncher opens it from the Home button (JM_HOME); off only
         // once JM_HOME is ours
         HTC_HOME,                                                                     // the stock home (and an ad SDK)
+        // OnePlus TV (HeyTap, MediaTek; Android 11): always running, 70-170 MB on a 2 GB TV. Not the remote
+        // (com.oneplus.tv.remote, heytap.tv.remotecontrolinspect), updates, Live TV, the account or the OnePlus
+        // launcher (it receives the remote's global buttons)
+        "com.heytap.olink",                                                           // OnePlus Connect (the phone app's link)
+        "com.heytap.mcs",                                                             // HeyTap push messages
+        "oneplus.smarthome",                                                          // smart-home hub
+        "com.oneplus.tv.screensaver",                                                 // OnePlus screensaver (ours replaces it)
+        "net.oneplus.weather",                                                        // weather app
+        "com.heytap.tv.remotediagnosing", "com.oneplus.tv.userguide",                 // remote diagnostics, user guide
     };
 
     /** The voice assistant, only with disable_assistant=true in config.properties (the mic button stops working). */
