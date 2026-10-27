@@ -150,7 +150,7 @@ final class WatchLog {
         for (Entry e : log) {
             if (t.equals(e.nTitle()) || t.equals(e.nShow())) return e;
             // "Suzhal - The Vortex" played as "Suzhal": the app's name is the start of ours (Lists.sameTitle's rule).
-            if (Lists.sameTitle(title, e.show.isEmpty() ? e.title : e.show)) return e;
+            if (Lists.sameNorm(t, e.show.isEmpty() ? e.nTitle() : e.nShow())) return e;
         }
         return null;
     }

@@ -882,24 +882,55 @@ final class Recs {
             } catch (NumberFormatException ignored) {
             }
         }
-        // Apps: the time each streaming app was in front over the last two weeks (with usage access, given by
-        // HomeMode through ADB; without it, nothing changes the order).
-        if (history) try {
-            android.app.usage.UsageStatsManager usage = context.getSystemService(android.app.usage.UsageStatsManager.class);
-            Map<String, android.app.usage.UsageStats> stats = usage == null ? null
-                    : usage.queryAndAggregateUsageStats(now - 14 * 86_400_000L, now);
-            long most = 0;
-            if (stats != null) {
-                for (android.app.usage.UsageStats u : stats.values()) if (isService(u.getPackageName())) most = Math.max(most, u.getTotalTimeInForeground());
-                for (android.app.usage.UsageStats u : stats.values()) {
-                    if (most > 0 && isService(u.getPackageName())) t.apps.put(u.getPackageName(), 0.4f * u.getTotalTimeInForeground() / most);
-                }
-            }
-        } catch (RuntimeException ignored) {
-        }
+        // Apps: the time each streaming app was in front over the last two weeks (appUsage, read in the background).
+        if (history) t.apps.putAll(appUsage(now));
         tasteNow = t;
         tasteAt = now;
         return t;
+    }
+
+    private static final long USAGE_EVERY = 10 * 60_000L;
+    private final ExecutorService usageIo = Executors.newSingleThreadExecutor();
+    private volatile Map<String, Float> usageNow = new HashMap<>();
+    private volatile long usageAt;
+    private volatile boolean usagePending;
+
+    /**
+     * Each streaming app's share of the time in front over the last two weeks (with usage access, given by HomeMode
+     * through ADB; without it, nothing changes the order). The last one read, at once: reading it again happens in the
+     * background, at most every 10 minutes: taste() runs on the main thread, and two weeks of usage is a system call
+     * that a busy TV can answer slowly.
+     */
+    private Map<String, Float> appUsage(long now) {
+        if (!usagePending && (usageAt == 0 || now - usageAt >= USAGE_EVERY || now < usageAt)) {
+            usagePending = true;
+            usageIo.execute(() -> {
+                Map<String, Float> out = new HashMap<>();
+                try {
+                    android.app.usage.UsageStatsManager usage = context.getSystemService(android.app.usage.UsageStatsManager.class);
+                    long at = System.currentTimeMillis();
+                    Map<String, android.app.usage.UsageStats> stats = usage == null ? null
+                            : usage.queryAndAggregateUsageStats(at - 14 * 86_400_000L, at);
+                    long most = 0;
+                    if (stats != null) {
+                        for (android.app.usage.UsageStats u : stats.values()) if (isService(u.getPackageName())) most = Math.max(most, u.getTotalTimeInForeground());
+                        for (android.app.usage.UsageStats u : stats.values()) {
+                            if (most > 0 && isService(u.getPackageName())) out.put(u.getPackageName(), 0.4f * u.getTotalTimeInForeground() / most);
+                        }
+                    }
+                } catch (RuntimeException ignored) {
+                }
+                boolean changed = !out.equals(usageNow);
+                usageNow = out;
+                usageAt = System.currentTimeMillis();
+                usagePending = false;
+                if (changed) {
+                    tasteAt = 0;   // the next taste() uses it
+                    notifyListeners();
+                }
+            });
+        }
+        return usageNow;
     }
 
     // MARK: - Top Shelf: the focused title's full-screen photo

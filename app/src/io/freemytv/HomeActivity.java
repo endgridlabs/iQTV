@@ -78,7 +78,9 @@ public class HomeActivity extends Activity {
 
     @Override public void onTrimMemory(int level) {
         super.onTrimMemory(level);
-        if (level >= TRIM_MEMORY_COMPLETE) Recs.get(this).trim();
+        // Hidden behind an app (YouTube, Netflix…): the full-screen photos go at once, not only when Android is about
+        // to stop the home screen. On a 2 GB TV the app in front needs the memory, and the photo on screen stays.
+        if (level >= TRIM_MEMORY_UI_HIDDEN) Recs.get(this).trim();
     }
 
     @Override public boolean dispatchKeyEvent(KeyEvent event) {

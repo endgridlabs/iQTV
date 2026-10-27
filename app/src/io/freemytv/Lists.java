@@ -38,10 +38,14 @@ final class Lists {
         return out;
     }
 
+    // Compiled once: String.replaceAll compiles its pattern on every call, and matching each pick against the watch log
+    // normalizes thousands of titles (measured on a OnePlus TV: 8.5 s on the main thread, every minute).
+    private static final java.util.regex.Pattern NOT_WORD = java.util.regex.Pattern.compile("[^\\p{L}\\p{N}]+");
+
     /** "Ponniyin Selvan: Part II" → "ponniyin selvan part ii": how a title an app reports is matched to a pick. */
     static String norm(String s) {
         if (s == null) return "";
-        return s.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
+        return NOT_WORD.matcher(s.toLowerCase(Locale.ROOT)).replaceAll(" ").trim();
     }
 
     /**
@@ -49,7 +53,11 @@ final class Lists {
      * least 5 characters ("Suzhal" played, "Suzhal - The Vortex" picked).
      */
     static boolean sameTitle(String a, String b) {
-        String x = norm(a), y = norm(b);
+        return sameNorm(norm(a), norm(b));
+    }
+
+    /** sameTitle for titles already normalized (norm). */
+    static boolean sameNorm(String x, String y) {
         if (x.length() < 2 || y.length() < 2) return false;
         if (x.equals(y)) return true;
         String shorter = x.length() < y.length() ? x : y, longer = shorter == x ? y : x;
