@@ -1121,6 +1121,23 @@ final class Recs {
         return new File(new File(context.getCacheDir(), "recs"), p.backdrop.replace("/", ""));
     }
 
+    /**
+     * Settings > Recommendations > Refresh now: the lists from TMDB again, at once, without waiting for the next
+     * scheduled update (titles already detailed keep their details, so it's quick).
+     */
+    void refreshNow() {
+        listAt = 0;
+        failedAt = 0;
+        error = "";
+        refreshIfStale();
+    }
+
+    /** Fetching from TMDB right now. */
+    boolean refreshing() { return fetching; }
+
+    /** When the lists were last fetched (0: never). */
+    long updatedAt() { return listAt; }
+
     /** With a key: fetches the list if stale or the time of day (morning/afternoon/night) changed; then the details. */
     void refreshIfStale() {
         if (!hasKey(context) || fetching) return;

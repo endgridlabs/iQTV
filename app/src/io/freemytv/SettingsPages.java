@@ -376,6 +376,22 @@ final class SettingsPages {
 
     // MARK: - Recommendations
 
+    /** Starts a refresh and keeps the row's "Updating…" current until it ends (the home screen hears Recs itself). */
+    private static void refreshNow(Host host, Recs recs) {
+        if (recs.refreshing()) return;
+        recs.refreshNow();
+        host.refresh();
+        android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
+        h.postDelayed(new Runnable() {
+            int left = 180;   // at most 3 minutes
+            @Override public void run() {
+                if (host.activity().isFinishing() || host.activity().isDestroyed()) return;   // Settings closed
+                host.refresh();
+                if (recs.refreshing() && --left > 0) h.postDelayed(this, 1000);
+            }
+        }, 1000);
+    }
+
     static Page recommendations(Host host) {
         return new Page() {
             @Override String title() { return Ui.tr("Recommendations"); }
@@ -388,6 +404,15 @@ final class SettingsPages {
                                 ? Ui.tr("Not set") : Ui.tr("Built in"))
                         .hint(Ui.tr("Free from themoviedb.org/settings/api: it brings the picks, rows and search. OK to paste it."))
                         .ok(() -> askTmdbKey(host)));
+                if (!Prefs.tmdbKey().isEmpty()) {
+                    long at = recs.updatedAt();
+                    String state = recs.refreshing() ? Ui.tr("Updating…")
+                            : !recs.error().isEmpty() ? Ui.tr("Couldn't update")
+                            : at == 0 ? "" : Ui.trf("Updated {time}", "time", Ui.time(at));
+                    out.add(new Opt(Ui.tr("Refresh now")).value(state)
+                            .hint(Ui.tr("The newest titles now. It also updates by itself 3 times a day."))
+                            .ok(() -> refreshNow(host, recs)));
+                }
                 out.add(new Opt(Ui.tr("Preferred genres")).value(genres.isEmpty() ? Ui.tr("None") : genresText(recs, genres)).chevron()
                         .hint(Ui.tr("They come first in every row, and each gets a row of its own."))
                         .ok(() -> host.open(genrePage(host))));
