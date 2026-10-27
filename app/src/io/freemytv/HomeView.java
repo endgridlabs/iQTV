@@ -3597,6 +3597,12 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         }
         rows.clear();
         rows.addAll(next);
+        // The hero's titles: from every row, on or off in Settings (Movies and TV Shows keep only theirs).
+        heroSources.clear();
+        for (Recs.Section s : recs.highlights()) {
+            Recs.Section shown = forTab(s);
+            if (shown != null && !shown.items.isEmpty()) heroSources.add(shown);
+        }
         if (focusedRow != null) {
             int was = stackIndex;
             stackIndex = 0;
@@ -3621,26 +3627,29 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     // MARK: The featured carousel (the hero while the focus is at the top)
 
     private int heroIndex;
+    /** Every row for the chosen tab, including the ones turned off in Settings (updateRows): the carousel's source. */
+    private final List<Recs.Section> heroSources = new ArrayList<>();
 
     /**
      * The titles the carousel goes through: the first ones with artwork of the most personal row there is (yours,
      * then your languages'), never what you already watched, nor the worldwide lists unless nothing else has any.
+     * From every row, so the highlights stay with the rows turned off.
      */
     private List<Recs.Pick> featured() {
         List<Recs.Pick> out = new ArrayList<>();
         for (String id : new String[] {"featured", "popular", "latest", "web", "shows", "trending", "new"}) {
-            for (Row r : rows) {
+            for (Recs.Section r : heroSources) {
                 if (!r.id.equals(id)) continue;
                 for (Recs.Pick p : r.items) if (p.backdrop != null && out.size() < HERO_FEATURED) out.add(p);
             }
             if (!out.isEmpty()) return out;
         }
-        for (Row r : rows) {
+        for (Recs.Section r : heroSources) {
             if (r.id.equals("continue") || r.id.equals("recent")) continue;
             for (Recs.Pick p : r.items) if (p.backdrop != null && out.size() < HERO_FEATURED) out.add(p);
             if (!out.isEmpty()) break;
         }
-        if (out.isEmpty()) for (Row r : rows) for (Recs.Pick p : r.items) if (p.backdrop != null && out.size() < 1) out.add(p);
+        if (out.isEmpty()) for (Recs.Section r : heroSources) for (Recs.Pick p : r.items) if (p.backdrop != null && out.size() < 1) out.add(p);
         return out;
     }
 
@@ -3799,7 +3808,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (shelfPick != null && a > 0.01f) drawHero(c, shelfPick, a, (1 - a) * 14 * k);
         if (rows.isEmpty()) {
             sRowLabel.setAlpha(0xCC);
-            c.drawText(Ui.tr("Nothing here yet: the picks load from TMDB in the background."), MARGIN * k, stackTop(1) + 30 * k, sRowLabel);
+            String why = !Recs.anyRowOn() ? Ui.tr("The rows are off: turn them on in Settings › Home Rows.")
+                    : Ui.tr("Nothing here yet: the picks load from TMDB in the background.");
+            c.drawText(why, MARGIN * k, stackTop(1) + 30 * k, sRowLabel);
         }
         // The rows that show: the label, the cards (the focused one last: it grows over its neighbors).
         for (int r = 1; r <= rows.size(); r++) {

@@ -290,14 +290,31 @@ final class Recs {
         long now = android.os.SystemClock.uptimeMillis(), stamp = (listAt * 31 + tasteAt) * 31 + Prefs.version;
         List<Section> cached = sectionsNow;
         if (cached != null && stamp == sectionsStamp && now - sectionsAt < 3000) return cached;
-        List<Section> out = makeSections();
+        List<Section> out = makeSections(false);
+        highlightsNow = makeSections(true);
         sectionsNow = out;
         sectionsStamp = (listAt * 31 + tasteAt) * 31 + Prefs.version;
         sectionsAt = now;
         return out;
     }
 
-    private volatile List<Section> sectionsNow;
+    /**
+     * Every row, whether on or off in Settings > Home Rows: where the hero's featured titles come from, so turning the
+     * rows off hides the rows, not the highlights.
+     */
+    List<Section> highlights() {
+        sections();
+        List<Section> h = highlightsNow;
+        return h == null ? new ArrayList<>() : h;
+    }
+
+    /** Whether any row is on in Settings > Home Rows. */
+    static boolean anyRowOn() {
+        for (String id : rowOrder()) if (rowOn(id)) return true;
+        return false;
+    }
+
+    private volatile List<Section> sectionsNow, highlightsNow;
     private volatile long sectionsAt, sectionsStamp;
 
     /** Watched or started in its app: in Continue Watching or Recently Watched, not suggested again (unless asked). */
@@ -358,14 +375,15 @@ final class Recs {
         }
     }
 
-    private List<Section> makeSections() {
+    /** The rows in your order: the ones that are on, or with `all` every one (highlights). */
+    private List<Section> makeSections(boolean all) {
         List<Section> out = new ArrayList<>();
         if (!hasKey(context)) return out;
         Taste t = taste();
         List<Pick> started = new ArrayList<>(), seen = new ArrayList<>();
         watched(t, started, seen);
         for (String id : rowOrder()) {
-            if (!rowOn(id)) continue;
+            if (!all && !rowOn(id)) continue;
             switch (id) {
                 case CONTINUE: add(out, id, rowName(id), started); break;
                 case RECENT: add(out, id, rowName(id), seen); break;
