@@ -265,8 +265,7 @@ final class HomeMode {
         if (!FREE.equals(state(app).optString("mode"))) return;
         try (Adb adb = Adb.connect(app, 10_000, null)) {
             remoteService(app, adb, true);
-            // TVs already in EndGrid iQTV+ mode before the Assistant key was ours get it with this update.
-            if (!(PKG + "/.HomeActivity").equals(adb.shell("settings get secure assistant").trim())) assistant(app, adb, true);
+            giveBackAssistant(adb);
         } catch (IOException e) {
             AppLog.w("remote buttons service: " + e.getMessage());
         }
@@ -303,34 +302,21 @@ final class HomeMode {
     }
 
     private static final String ASSISTANT_ROLE = "android.app.role.ASSISTANT";
-    private static final Pattern PACKAGE = Pattern.compile("[\\w.]+");
 
     /**
-     * The remote's Assistant key: Android handles it before any key filter and opens the TV's assistant, so EndGrid
-     * iQTV+ becomes the assistant (HomeActivity's ASSIST: Search with Gemini). The Google Assistant's own results need
-     * the stock home screen, which this mode turns off. Original gives the role back to the app that had it.
+     * The remote's Assistant (mic) key stays the Google Assistant's: a voice remote's sound reaches only the TV's
+     * assistant (OnePlus TVs have no microphone of their own), so with EndGrid iQTV+ as the assistant nothing could be
+     * said. A build that took the role gives it back to the Google Assistant.
      */
-    private static void assistant(Context c, Adb adb, boolean on) throws IOException {
-        if (Build.VERSION.SDK_INT < 29) return;   // no roles: the Assistant key stays the system's
-        if (on) {
-            String was = adb.shell("settings get secure voice_interaction_service").trim();
-            if (was.isEmpty() || was.equals("null")) was = adb.shell("settings get secure assistant").trim();
-            String pkg = packageOf(was);
-            if (pkg != null && PACKAGE.matcher(pkg).matches() && !pkg.equals(PKG)) {
-                JSONObject s = state(c);
-                try { s.put("originalAssistant", pkg); } catch (JSONException ignored) {}
-                save(c, s);
-            }
-            adb.shell("cmd role add-role-holder --user 0 " + ASSISTANT_ROLE + " " + PKG);
+    private static void giveBackAssistant(Adb adb) throws IOException {
+        if (Build.VERSION.SDK_INT < 29) return;
+        if (!adb.shell("settings get secure assistant").trim().startsWith(PKG + "/")) return;
+        if (adb.shell("pm path " + ASSISTANT[0]).contains("package:")) {
+            adb.shell("cmd role add-role-holder --user 0 " + ASSISTANT_ROLE + " " + ASSISTANT[0]);   // one holder: replaces ours
         } else {
-            String pkg = state(c).optString("originalAssistant", ASSISTANT[0]);   // unknown: the Google Assistant
-            if (PACKAGE.matcher(pkg).matches() && adb.shell("pm path " + pkg).contains("package:")) {
-                adb.shell("cmd role add-role-holder --user 0 " + ASSISTANT_ROLE + " " + pkg);   // one holder: replaces ours
-            } else {
-                adb.shell("cmd role remove-role-holder --user 0 " + ASSISTANT_ROLE + " " + PKG);
-            }
+            adb.shell("cmd role remove-role-holder --user 0 " + ASSISTANT_ROLE + " " + PKG);
         }
-        AppLog.w("assistant " + (on ? "EndGrid iQTV+" : "given back"));
+        AppLog.w("assistant given back");
     }
 
     private static final String REMOTE_SERVICE = PKG + "/" + PKG + ".RemoteKeyService";
@@ -492,7 +478,7 @@ final class HomeMode {
                 AppLog.w("remote buttons service: " + e.getMessage());
             }
             try {
-                assistant(c, adb, true);
+                giveBackAssistant(adb);
             } catch (IOException e) {
                 AppLog.w("assistant: " + e.getMessage());
             }
@@ -557,7 +543,7 @@ final class HomeMode {
                 AppLog.w("remote buttons service: " + e.getMessage());
             }
             try {
-                assistant(c, adb, false);
+                giveBackAssistant(adb);
             } catch (IOException e) {
                 AppLog.w("assistant: " + e.getMessage());
             }

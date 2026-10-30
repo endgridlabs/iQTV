@@ -2383,8 +2383,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 }
                 return true;
             case KeyEvent.KEYCODE_SEARCH:
-            case KeyEvent.KEYCODE_ASSIST:
-                // A remote's search or mic key that reaches the app (RemoteKeyService takes it first in EndGrid iQTV+ mode).
+                // A search key that reaches the app (RemoteKeyService takes it first in EndGrid iQTV+ mode).
                 if (!down && e.getRepeatCount() == 0) searchFromRemote();
                 return true;
             default:

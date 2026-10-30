@@ -42,12 +42,12 @@ public class HomeActivity extends Activity {
         if (fromRemote(getIntent())) home.post(home::searchFromRemote);
     }
 
-    /** The remote's Assistant key (RemoteKeys): the Search screen, listening. */
+    /** The remote's search key (RemoteKeys): the Search screen. */
     static final String ACTION_SEARCH = "com.endgrid.iqtv.action.SEARCH";
 
-    /** Our search key, or the system's Assistant key with EndGrid iQTV+ as the TV's assistant. */
+    /** The remote's search key (RemoteKeys). */
     private static boolean fromRemote(Intent intent) {
-        return ACTION_SEARCH.equals(intent.getAction()) || Intent.ACTION_ASSIST.equals(intent.getAction());
+        return ACTION_SEARCH.equals(intent.getAction());
     }
 
     @Override protected void onResume() {

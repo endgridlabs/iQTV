@@ -5,8 +5,9 @@
 - **A new app ID, `com.endgrid.iqtv`:** it replaces `io.freemytv`, so this version installs as a new app. Before
   installing it, open the old one's Settings, switch to Original, then uninstall it; turn on iQTV+ mode again in the
   new one. Settings start fresh.
-- **The remote's Assistant key opens Search with Gemini,** already listening (iQTV+ becomes the TV's assistant;
-  Original gives the key back to Google Assistant, whose results need the stock home screen).
+- **Search with Gemini** from the Search tab and a remote's search key. The mic button stays Google Assistant's: a
+  voice remote's sound reaches only the TV's assistant. Assistant result cards still can't open a show while the
+  stock home screen is off; ask it "play … on Netflix" instead.
 
 ## 1.1.0 — smoother, and easier to browse
 
