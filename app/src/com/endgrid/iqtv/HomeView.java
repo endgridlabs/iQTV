@@ -2543,6 +2543,34 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         gridDirty = true;
     }
 
+    /** The title whose Open or Watch Now OK would press now (what activate() opens), or null. */
+    private Recs.Pick pickAtFocus() {
+        if (sheetOpen || searchOpen || weatherOpen) return null;
+        if (zone == Z_HERO) return currentPick();
+        if (zone == Z_CARDS) return cardIndex < cards.size() ? cards.get(cardIndex) : null;
+        if (zone == Z_ACTIONS || infoOpen) return shelfPick;
+        return null;
+    }
+
+    private Recs.Pick linkPending;
+
+    /**
+     * A title whose own page isn't known yet (a search result, a featured title just in): Watchmode is asked first,
+     * then OK goes on as pressed, opening the title itself if it has a link or the app if not. True while it asks.
+     */
+    private boolean linkFirst(Recs.Pick p) {
+        if (linkPending != null) return true;   // OK again while it asks does nothing
+        if (!recs.mayLink(p)) return false;
+        linkPending = p;
+        showToast(Ui.trf("Opening “{title}”…", "title", p.title));
+        recs.linkThen(p, () -> {
+            Recs.Pick asked = linkPending;
+            linkPending = null;
+            if (running && asked == pickAtFocus()) activate();   // still the same title: open it
+        });
+        return true;
+    }
+
     private void activate() {
         wake();
         if (searchOpen) {
@@ -2567,6 +2595,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         } else if (zone == Z_HERO) {
             Recs.Pick p = currentPick();
             if (p == null || p.pkg == null) return;
+            if (linkFirst(p)) return;
             it = HomeApps.app(p.pkg, Recs.serviceName(p), p.link);
             r = heroButton;
         } else if (zone == Z_STATUS) {
@@ -2591,6 +2620,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 showToast(Ui.trf("{title} isn't on any of your apps.", "title", p.title));
                 return;
             }
+            if (linkFirst(p)) return;
             it = HomeApps.app(p.pkg, Recs.serviceName(p), p.link);
             r = TOP_SHELF ? thumbRect(stackIndex, cardIndex, focusedCell) : cardRects[cardIndex];
         } else if (zone == Z_ACTIONS || infoOpen) {
@@ -2598,6 +2628,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             if (p == null) return;
             List<Integer> acts = actions();
             int act = infoOpen ? ACT_PLAY : actionIndex < acts.size() ? acts.get(actionIndex) : -1;
+            if (act != ACT_HIDE && act != ACT_INFO && p.pkg != null && linkFirst(p)) return;
             if (infoOpen) closeInfo();
             if (act == ACT_HIDE) {
                 notForMe(p);

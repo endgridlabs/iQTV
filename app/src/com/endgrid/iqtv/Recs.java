@@ -1345,8 +1345,11 @@ final class Recs {
         List<Pick> out = new ArrayList<>();
         java.util.Set<String> seen = new java.util.HashSet<>();
         if (shelf) {
-            // Every title in the rows: their images are downloaded ahead (scrolling never waits on the network).
-            for (Section s : sections()) {
+            // Every title in the rows and the featured ones (all that's left with every row off): their images are
+            // downloaded ahead (scrolling never waits on the network).
+            List<Section> all = new ArrayList<>(sections());
+            all.addAll(highlights());
+            for (Section s : all) {
                 for (Pick p : s.items) if ((p.kind.equals("movie") || p.kind.equals("tv")) && seen.add(key(p))) out.add(p);
             }
             return out;
@@ -1614,6 +1617,21 @@ final class Recs {
     private boolean needsLink(Pick p) {
         return linksOn() && p.pkg != null && p.link == null
                 && cache.getString(linkKey(p), null) == null && System.currentTimeMillis() >= linkRetryAt;
+    }
+
+    /**
+     * A title about to be opened whose link isn't known yet (a search result, or one the list hasn't reached): it is
+     * looked up first, then `then` runs on the main thread, with p.link set if there is one.
+     */
+    boolean mayLink(Pick p) {
+        return needsLink(p);
+    }
+
+    void linkThen(Pick p, Runnable then) {
+        io.execute(() -> {
+            findLink(p);
+            main.post(then);
+        });
     }
 
     /** A key is set and Watchmode hasn't refused it (a refused key isn't tried again until it changes). */
