@@ -119,6 +119,14 @@ final class Prefs {
 
     static void setTheme(String v) { put("theme", v); }
 
+    /** The glass behind Your Apps on the Top Shelf: "liquid" (clear, the photo shows through), "frosted" or "off". */
+    static String dockGlass() {
+        String v = sp().getString("dockGlass", "liquid");
+        return v.equals("frosted") || v.equals("off") ? v : "liquid";
+    }
+
+    static void setDockGlass(String v) { put("dockGlass", v); }
+
     // MARK: - City
 
     static String city() { return sp().getString("city", Config.CITY).trim(); }

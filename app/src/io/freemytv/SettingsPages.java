@@ -86,6 +86,10 @@ final class SettingsPages {
                 out.add(new Opt(Ui.tr("Streaming Apps")).chevron().ok(() -> host.open(apps(host))));
                 out.add(new Opt(Ui.tr("Recommendations")).chevron().ok(() -> host.open(recommendations(host))));
                 out.add(new Opt(Ui.tr("Home Rows")).chevron().ok(() -> host.open(homeRows(host))));
+                out.add(new Opt(Ui.tr("Dock glass")).value(dockGlassName(Prefs.dockGlass()))
+                        .hint(Ui.tr("The glass behind Your Apps: Liquid (the photo shows through), Frosted (softer) or Off."))
+                        .ok(() -> { stepDockGlass(1); host.refresh(); })
+                        .step(dir -> { stepDockGlass(dir); host.refresh(); }));
                 out.add(new Opt(Ui.tr("Screensaver")).chevron().ok(() -> host.open(screensaver(host))));
                 out.add(new Opt(Ui.tr("Home Settings")).chevron()
                         .hint(Ui.tr("Menu language, temperature, theme, your photos, sounds, weather and prices."))
@@ -372,6 +376,19 @@ final class SettingsPages {
         } else {
             android.widget.Toast.makeText(a, Ui.trf("Install {app} from the TV's app store.", "app", p.name), android.widget.Toast.LENGTH_LONG).show();
         }
+    }
+
+    // MARK: - Dock glass
+
+    private static final String[] DOCK_GLASS = {"liquid", "frosted", "off"};
+
+    private static String dockGlassName(String v) {
+        return v.equals("frosted") ? Ui.tr("Frosted Glass") : v.equals("off") ? Ui.tr("Off") : Ui.tr("Liquid Glass");
+    }
+
+    private static void stepDockGlass(int dir) {
+        int at = java.util.Arrays.asList(DOCK_GLASS).indexOf(Prefs.dockGlass());
+        Prefs.setDockGlass(DOCK_GLASS[((at + dir) % DOCK_GLASS.length + DOCK_GLASS.length) % DOCK_GLASS.length]);
     }
 
     // MARK: - Recommendations

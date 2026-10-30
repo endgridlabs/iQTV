@@ -121,12 +121,20 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private final RectF[] tabRects = new RectF[6];
     private int shelfTab, tabIndex;
     private boolean infoOpen;       // More Info: the title's details over the screen (Back closes it)
+    // The weather pill at the end of the top bar (→ from Settings), and the Weather panel it opens (shares More Info's
+    // fade, `info`; `overlayWeather` says which of the two the fade draws, until it has faded out).
+    private boolean weatherFocus, weatherOpen, overlayWeather;
+    private final Spring weatherPill = new Spring(0.26f, 0.85f, 0);
+    private WeatherPanel weatherPanel;
     private final Spring info = new Spring(0.3f, 0.9f, 0);
     private StaticLayout infoText;
     private String infoFor = "";
     // The stack: the dock's icons at S_DOCK_TOP; the rows S_ROW_PITCH apart; a focused row rests at S_ANCHOR (just
     // under the buttons), and what scrolls above it fades out over S_FADE.
     private static final float S_DOCK_TOP = 640, S_DOCK_GAP = 70, S_ROW_PITCH = 250, S_ANCHOR = 600, S_FADE = 150;
+    /** The Top Shelf's dock: apps shown at once, the tiles' height (16:9: 252 × 142), and its glass's margins. */
+    private static final int S_DOCK_APPS = 6;
+    private static final float S_TILE_H = 142, S_TRAY_TOP = 26, S_TRAY_BOTTOM = 74, S_TRAY_RADIUS = 44;
     private static final float S_LABEL_DY = 28, S_THUMB_DY = 48;
     private static final float S_THUMB_W = Tokens.CARD_W, S_THUMB_H = Tokens.CARD_H, S_THUMB_GAP = Tokens.GAP;
     private static final float S_GROW = Tokens.FOCUS_GROW_CARD;
@@ -444,7 +452,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         data = HomeData.get(a);
         recs = Recs.get(a);
         click = new Click(a);
-        shelfVisible = HomeApps.shelfVisible(a);
+        // The Top Shelf's dock: 6 apps at a time, big enough to read across the room (the rest scroll).
+        shelfVisible = TOP_SHELF ? Math.min(S_DOCK_APPS, HomeApps.shelfVisible(a)) : HomeApps.shelfVisible(a);
         ui = a.getSharedPreferences("home-ui", Context.MODE_PRIVATE);
         tvInputs = (TvInputManager) a.getSystemService(Context.TV_INPUT_SERVICE);
         launcherApps = (LauncherApps) a.getSystemService(Context.LAUNCHER_APPS_SERVICE);
@@ -583,6 +592,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             searchResults = null;
             searchQuery = "";
             infoOpen = false;
+            weatherOpen = false;
+            weatherFocus = false;
             if (shelfTab != TAB_HOME) {
                 shelfTab = TAB_HOME;
                 rows.clear();
@@ -655,7 +666,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         // Sized to what they draw (the glass and its shadow; the grown tiles and their shadows): smaller layers are
         // cheaper for the GPU to composite on every frame of the drawer animation.
         measure(platter, width, Math.round(320 * kk));
-        measure(tiles, width, Math.round(270 * kk));
+        measure(tiles, width, Math.round((TOP_SHELF ? 360 : 270) * kk));   // the Top Shelf's: bigger tiles, their tray
         measure(drawerLayer, width, Math.round(600 * kk));
         measure(sheetLayer, width, height);
         measure(toastLayer, Math.round(1000 * kk), Math.round(220 * kk));
@@ -816,7 +827,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (TOP_SHELF) {
             boolean infoMoving = info.step(dt);
             if (infoMoving) motionDirty = true;   // the dock and the buttons fade with it (updateMotion)
-            cardsMoving |= step(actionFocus, dt) | step(tabFocus, dt) | infoMoving | stepStack(dt) | tickShelfText(up);
+            cardsMoving |= step(actionFocus, dt) | step(tabFocus, dt) | weatherPill.step(dt) | infoMoving | stepStack(dt) | tickShelfText(up);
         }
         if (TOP_SHELF && tickShelfFade(up)) sky.invalidate();
         if (topMoving) status.invalidate();
@@ -894,6 +905,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             float shown = 1 - Ui.clamp(info.value);
             dockMotion(dockAt);
             show(tiles, home * shown * dockAt[1], lift + dockAt[0]);
+            if (dockGlass()) tiles.invalidate();   // the glass shows the photo where the tray is now
             show(status, 0, lift);
         } else {
             show(tiles, home, lift);
@@ -1033,7 +1045,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 scene.setFrost(frostOf(b));
                 scene.setGlassImage(glassOf(b));
             }
-            statusDirty = drawerDirty = true;
+            statusDirty = drawerDirty = tilesDirty = true;   // the dock's glass shows the new photo too
             return;
         }
         long up = SystemClock.uptimeMillis();
@@ -1347,7 +1359,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         float full = (CONTENT_R - MARGIN) * k;
         // Tiles in the TV banners' own 16:9, so an app's art is never stretched; never taller than L_TILE_H. The glass
         // keeps its bottom edge, so with more apps it only gets lower.
-        float tw = Math.min(L_TILE_H * 16f / 9 * k, (full - Math.max(0, n - 1) * gap) / Math.max(1, n));
+        float tw = Math.min((TOP_SHELF ? S_TILE_H : L_TILE_H) * 16f / 9 * k, (full - Math.max(0, n - 1) * gap) / Math.max(1, n));
         float th = tw * 9f / 16;
         float width = n * tw + Math.max(0, n - 1) * gap, left = (w - width) / 2f;
         float top = TOP_SHELF ? S_DOCK_TOP * k - pad : (L_PLATTER_TOP + L_TILE_H) * k - th;
@@ -1378,6 +1390,30 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (snap) return;
         reorderAnim = true;   // the same slides as moving an app
         wake();
+    }
+
+    /** The Top Shelf's dock sits in a glass tray (Settings > Personalize > Dock glass), unless it's off. */
+    private boolean dockGlass() {
+        return TOP_SHELF && !shelf.isEmpty() && !Prefs.dockGlass().equals("off");
+    }
+
+    private final RectF trayRect = new RectF();
+
+    /**
+     * The tray behind Your Apps, as tvOS-style docks have it: Liquid Glass (the photo shows through, lightly blurred,
+     * with a bright rim) or Frosted Glass (heavily blurred, softer). It holds the tiles and their names; the layer is
+     * moved with the stack, so the glass reads the photo where the layer really is (Layer.onDraw's offset).
+     */
+    private void drawDockGlass(Canvas c) {
+        if (tileRects.length == 0) return;
+        RectF t = tileRects[Math.min(shelfFirst, tileRects.length - 1)];
+        trayRect.set(platterRect.left, t.top - S_TRAY_TOP * k, platterRect.right, t.bottom + S_TRAY_BOTTOM * k);
+        float radius = S_TRAY_RADIUS * k;
+        if (Prefs.dockGlass().equals("frosted")) {
+            scene.glass(c, trayRect, radius, SMOKE, 0.42f, 0, 0, 0.05f, 1);
+        } else {
+            scene.liquid(c, trayRect, radius, SMOKE, 0.12f, 0.08f, 28 * k, 22 * k, 0.95f, 1);
+        }
     }
 
     /** Shelf layer: the glass bar and its shadow (it only changes with the background). */
@@ -1472,6 +1508,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     private void drawTiles(Canvas c) {
+        if (dockGlass()) drawDockGlass(c);
         // The focused one last: it grows over its neighbors without being covered by them.
         int top = -1;
         float most = 0.02f;
@@ -1974,8 +2011,12 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         heroChanged |= aim(cardFocus, !sheetOpen && zone == Z_CARDS ? cardIndex : -1, snap) | topChanged;
         if (TOP_SHELF) {
             heroChanged |= aim(actionFocus, !sheetOpen && !infoOpen && zone == Z_ACTIONS ? actionIndex : -1, snap);
-            heroChanged |= aim(tabFocus, !sheetOpen && zone == Z_TABS ? tabIndex : -1, snap);
-            info.target = infoOpen ? 1 : 0;
+            heroChanged |= aim(tabFocus, !sheetOpen && zone == Z_TABS && !weatherFocus ? tabIndex : -1, snap);
+            float pillTarget = !sheetOpen && !weatherOpen && zone == Z_TABS && weatherFocus ? 1 : 0;
+            heroChanged |= weatherPill.target != pillTarget;
+            weatherPill.target = pillTarget;
+            if (snap) weatherPill.snap(pillTarget);
+            info.target = infoOpen || weatherOpen ? 1 : 0;
             if (snap) info.snap(info.target);
             heroChanged |= retargetStack(snap);
         }
@@ -2316,7 +2357,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     private void back() {
-        if (infoOpen) {
+        if (weatherOpen) {
+            closeWeather();
+        } else if (infoOpen) {
             closeInfo();
         } else if (sheetOpen) {
             closeSheet();
@@ -2340,7 +2383,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     private void move(int dx, int dy) {
-        if (infoOpen) return;   // More Info: only OK and Back
+        if (infoOpen || weatherOpen) return;   // More Info and Weather: only OK and Back
         if (sheetOpen) {
             moveGrid(dx, dy);
             return;
@@ -2460,6 +2503,10 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     private void activate() {
         wake();
+        if (weatherOpen) {
+            closeWeather();
+            return;
+        }
         if (reordering) {   // TalkBack's click while moving an app: drop it
             dropReorder();
             return;
@@ -3724,7 +3771,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             handler.postDelayed(this, HERO_ROTATE_MS);
             List<Recs.Pick> f = featured();
             boolean atTop = zone == Z_ACTIONS || zone == Z_TABS;
-            if (!TOP_SHELF || !atTop || infoOpen || sheetOpen || drawerOpen || f.size() < 2 || reordering) return;
+            if (!TOP_SHELF || !atTop || infoOpen || weatherOpen || sheetOpen || drawerOpen || f.size() < 2 || reordering) return;
             heroIndex = (heroIndex + 1) % f.size();
             setShelfPick(f.get(heroIndex), true);
             updateShelfImage();
@@ -3901,11 +3948,14 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         }
         // Your Apps: its label here; the apps themselves are the dock layer, moved to sit under it (updateMotion).
         float dock = dockTop() - stack.value;
-        if (!shelf.isEmpty() && dock < h) {
+        if (!shelf.isEmpty() && dock < h && !dockGlass()) {   // in its glass tray the dock needs no label
             sRowLabel.setAlpha(Math.round(0xF2 * stackAlpha(dock)));
             c.drawText(Ui.tr("Your Apps"), MARGIN * k, dock + 30 * k, sRowLabel);
         }
-        if (info.value > 0.01f) drawInfo(c, Ui.clamp(info.value));
+        if (info.value > 0.01f) {
+            if (overlayWeather) weatherPanel().drawPanel(c, data.weather, data.weatherAt, w, h, k, Ui.clamp(info.value));
+            else drawInfo(c, Ui.clamp(info.value));
+        }
     }
 
     /**
@@ -3967,12 +4017,16 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         sClock.setTextAlign(Paint.Align.RIGHT);
         c.drawText(clockText, right, cy + Ui.halfCap(sClock), sClock);
         String name = Prefs.viewerName();
+        // The weather pill, left of your initial (or of the time): OK on it opens the Weather panel.
+        float pillRight = right - sClock.measureText(clockText) - 28 * k - (name.isEmpty() ? 0 : 56 * k + 22 * k);
+        weatherPanel().drawPill(c, data.weather, pillRight, cy, k, Ui.clamp(weatherPill.value), 1);
         if (!name.isEmpty()) {
             float d = 56 * k, cx = right - sClock.measureText(clockText) - 28 * k - d / 2;
             if (avatarShader == null || avatarX != cx) {
                 avatarX = cx;
                 avatarShader = new LinearGradient(cx - d / 2, cy - d / 2, cx + d / 2, cy + d / 2, Brand.CYAN, Brand.VIOLET, Shader.TileMode.CLAMP);
             }
+            fill.setColor(0xFFFFFFFF);   // opaque: the tabs above leave `fill` translucent while the bar has the focus
             fill.setShader(avatarShader);
             c.drawCircle(cx, cy, d / 2, fill);
             fill.setShader(null);
@@ -4285,11 +4339,23 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 break;
             case Z_TABS:
                 if (dx != 0) {
+                    // → past Settings: the weather pill (when there's weather); ← from it: back to Settings.
+                    if (weatherFocus) {
+                        if (dx > 0) return true;
+                        weatherFocus = false;
+                        break;
+                    }
+                    if (dx > 0 && tabIndex == tabRects.length - 1) {
+                        if (!WeatherPanel.has(data.weather)) return true;
+                        weatherFocus = true;
+                        break;
+                    }
                     int next = Math.max(0, Math.min(tabRects.length - 1, tabIndex + dx));
                     if (next == tabIndex) return true;
                     tabIndex = next;
                     if (tabIndex <= TAB_SHOWS) selectShelfTab(tabIndex);   // as on tvOS: focusing a filter shows it
                 } else if (dy > 0) {
+                    weatherFocus = false;
                     if (actionCount() > 0) {
                         zone = Z_ACTIONS;
                         actionIndex = 0;
@@ -4309,6 +4375,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 } else if (dy < 0) {
                     zone = Z_TABS;
                     tabIndex = shelfTab;
+                    weatherFocus = false;
                 } else {
                     belowHero();
                 }
@@ -4377,6 +4444,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private void openInfo() {
         if (shelfPick == null) return;
         infoOpen = true;
+        overlayWeather = false;
         infoText = null;
         retarget(false);
         wake();
@@ -4388,8 +4456,32 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         wake();
     }
 
+    private WeatherPanel weatherPanel() {
+        if (weatherPanel == null) weatherPanel = new WeatherPanel(getContext());
+        return weatherPanel;
+    }
+
+    /** OK on the weather pill: the Weather panel over the screen; Back or OK closes it. */
+    private void openWeather() {
+        weatherOpen = true;
+        overlayWeather = true;
+        data.refreshIfStale();
+        retarget(false);
+        wake();
+    }
+
+    private void closeWeather() {
+        weatherOpen = false;
+        retarget(false);
+        wake();
+    }
+
     /** OK in the navigation: Apps opens All Apps, Search the search, Settings EndGrid iQTV+'s settings. */
     private void activateTab() {
+        if (weatherFocus) {
+            openWeather();
+            return;
+        }
         switch (tabIndex) {
             case TAB_APPS: openSheet(); break;
             case TAB_SEARCH: openSearch(); break;

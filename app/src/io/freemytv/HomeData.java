@@ -43,8 +43,16 @@ final class HomeData {
     private static String quote() {
         return CURRENCY.equals("USD") || inDollars ? "USDT" : CURRENCY;
     }
-    private static final String WEATHER_QUERY = "&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset"
-            + "&hourly=temperature_2m,weather_code,is_day&timezone=auto&forecast_days=2";
+    /** Now, the next hours and 6 days: enough for the top bar's pill and the full Weather panel. */
+    private static final String WEATHER_QUERY = "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,uv_index,weather_code,is_day"
+            + "&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max"
+            + "&hourly=temperature_2m,weather_code,is_day,precipitation_probability&timezone=auto&forecast_days=6";
+
+    /** Air quality (US AQI) for the Weather panel: Open-Meteo's air-quality service, same place. */
+    private static String airUrl() {
+        return "https://air-quality-api.open-meteo.com/v1/air-quality?latitude=" + Prefs.latitude() + "&longitude=" + Prefs.longitude()
+                + "&current=us_aqi&timezone=auto";
+    }
 
     private static String weatherPlace() {
         return Prefs.latitude() + "," + Prefs.longitude();
@@ -54,6 +62,8 @@ final class HomeData {
         return "https://api.open-meteo.com/v1/forecast?latitude=" + Prefs.latitude() + "&longitude=" + Prefs.longitude() + WEATHER_QUERY;
     }
     private static final long PRICES_EVERY = 5 * 60_000L, WEATHER_EVERY = 30 * 60_000L;
+    /** The saved forecast; a new name when what's asked changes, so an older one is fetched again at once. */
+    private static final String WEATHER_KEY = "weather2";
     interface Listener { void onData(); }
 
     /** BTC, ETH and SOL; in Brazilian reais also the dollar (USDT/BRL), which Binance doesn't list for most currencies. */
@@ -129,6 +139,21 @@ final class HomeData {
         final List<Double> hourTemp = new ArrayList<>();
         final List<Integer> hourCode = new ArrayList<>();
         final List<Boolean> hourDay = new ArrayList<>();
+        final List<Integer> hourRain = new ArrayList<>();   // chance of rain, %
+        // The Weather panel's details (NaN or -1 when the forecast didn't have them).
+        double feels = Double.NaN, wind = Double.NaN, uv = Double.NaN;
+        int humidity = -1, aqi = -1;
+        // Today and the next days: date (local midnight), code, low, high, chance of rain.
+        final List<Long> days = new ArrayList<>();
+        final List<Integer> dayCode = new ArrayList<>(), dayRain = new ArrayList<>();
+        final List<Double> dayMin = new ArrayList<>(), dayMax = new ArrayList<>();
+
+        /** The highest chance of rain in the next hours, or -1. */
+        int rainNext() {
+            int most = -1;
+            for (int r : hourRain) most = Math.max(most, r);
+            return most;
+        }
     }
 
     private static HomeData instance;
@@ -162,10 +187,12 @@ final class HomeData {
                 if (p != null) parsePrices(p);
                 pricesAt = cache.getLong("pricesAt", 0);
             }
-            String w = cache.getString("weather", null);
+            String w = cache.getString(WEATHER_KEY, null);
             // The cached forecast is for the city it was fetched for; another city means fetch again.
             if (w != null && weatherPlace().equals(cache.getString("weatherPlace", ""))) {
                 weather = parseWeather(w);
+                String air = cache.getString("air", null);
+                if (air != null) weather.aqi = parseAqi(air);
                 weatherAt = cache.getLong("weatherAt", 0);
                 weatherFor = weatherPlace();
             }
@@ -212,10 +239,20 @@ final class HomeData {
                 try {
                     String place = weatherPlace();
                     String body = get(weatherUrl());
-                    weather = parseWeather(body);
+                    Weather w = parseWeather(body);
+                    // Air quality is a detail: without it (the service down), the forecast still shows.
+                    String air = null;
+                    try {
+                        air = get(airUrl());
+                        w.aqi = parseAqi(air);
+                    } catch (IOException e) {
+                        AppLog.w("air quality: " + e.getMessage());
+                    }
+                    weather = w;
                     weatherAt = System.currentTimeMillis();
                     weatherFor = place;
-                    cache.edit().putString("weather", body).putLong("weatherAt", weatherAt).putString("weatherPlace", place).apply();
+                    cache.edit().putString(WEATHER_KEY, body).putString("air", air).putLong("weatherAt", weatherAt)
+                            .putString("weatherPlace", place).apply();
                     notifyListeners();
                 } catch (Exception e) {
                     weatherFailedAt = System.currentTimeMillis();
@@ -262,17 +299,32 @@ final class HomeData {
         w.temp = current.getDouble("temperature_2m");
         w.code = current.getInt("weather_code");
         w.isDay = current.optInt("is_day", 1) == 1;
+        w.feels = current.optDouble("apparent_temperature", Double.NaN);
+        w.wind = current.optDouble("wind_speed_10m", Double.NaN);
+        w.uv = current.optDouble("uv_index", Double.NaN);
+        w.humidity = current.has("relative_humidity_2m") ? current.optInt("relative_humidity_2m", -1) : -1;
         JSONObject daily = o.getJSONObject("daily");
         w.max = daily.getJSONArray("temperature_2m_max").getDouble(0);
         w.min = daily.getJSONArray("temperature_2m_min").getDouble(0);
         w.sunrise = localTime(daily.getJSONArray("sunrise").getString(0), zone);
         w.sunset = localTime(daily.getJSONArray("sunset").getString(0), zone);
+        JSONArray dTimes = daily.optJSONArray("time"), dCodes = daily.optJSONArray("weather_code");
+        JSONArray dMax = daily.optJSONArray("temperature_2m_max"), dMin = daily.optJSONArray("temperature_2m_min");
+        JSONArray dRain = daily.optJSONArray("precipitation_probability_max");
+        for (int i = 0; dTimes != null && dCodes != null && i < dTimes.length(); i++) {
+            w.days.add(localTime(dTimes.getString(i) + "T00:00", zone));
+            w.dayCode.add(dCodes.optInt(i, -1));
+            w.dayMin.add(dMin.optDouble(i, Double.NaN));
+            w.dayMax.add(dMax.optDouble(i, Double.NaN));
+            w.dayRain.add(dRain == null ? -1 : dRain.optInt(i, -1));
+        }
         JSONObject hourly = o.optJSONObject("hourly");
         if (hourly != null) {
             JSONArray times = hourly.getJSONArray("time");
             JSONArray temps = hourly.getJSONArray("temperature_2m");
             JSONArray codes = hourly.getJSONArray("weather_code");
             JSONArray days = hourly.optJSONArray("is_day");
+            JSONArray rain = hourly.optJSONArray("precipitation_probability");
             long now = System.currentTimeMillis();
             for (int i = 0; i < times.length() && w.hours.size() < 6; i++) {
                 long at = localTime(times.getString(i), zone);
@@ -281,9 +333,20 @@ final class HomeData {
                 w.hourTemp.add(temps.getDouble(i));
                 w.hourCode.add(codes.getInt(i));
                 w.hourDay.add(days == null || days.optInt(i, 1) == 1);
+                w.hourRain.add(rain == null ? -1 : rain.optInt(i, -1));
             }
         }
         return w;
+    }
+
+    /** The US AQI from the air-quality service's answer, or -1. */
+    private static int parseAqi(String body) {
+        try {
+            JSONObject c = new JSONObject(body).optJSONObject("current");
+            return c == null || !c.has("us_aqi") || c.isNull("us_aqi") ? -1 : c.getInt("us_aqi");
+        } catch (Exception e) {
+            return -1;
+        }
     }
 
     private static long localTime(String iso, TimeZone zone) throws ParseException {
@@ -429,6 +492,12 @@ final class HomeData {
     static String degrees(double v) {
         if (Double.isNaN(v)) return "—";
         return Math.round(fahrenheit() ? v * 9 / 5 + 32 : v) + "°";
+    }
+
+    /** Wind speed from Open-Meteo's km/h: "9 km/h", or "6 mph" where temperatures are in Fahrenheit. */
+    static String wind(double kmh) {
+        if (Double.isNaN(kmh)) return "—";
+        return fahrenheit() ? Math.round(kmh * 0.621371) + " mph" : Math.round(kmh) + " km/h";
     }
 
     private static boolean fahrenheit() {
