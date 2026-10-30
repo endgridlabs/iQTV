@@ -59,6 +59,7 @@ final class Config {
 
     static final String TMDB_KEY = "$(prop tmdb_key '')";
     static final String WATCHMODE_KEY = "$(prop watchmode_key '')";
+    static final String GEMINI_KEY = "$(prop gemini_key '')";
     static final String TMDB_REGION = "$(prop tmdb_region US)";
     static final String CONTENT_LANGUAGE = "$(prop content_language '')";
     static final String VIEWER_NAME = "$(prop viewer_name '')";

@@ -1106,6 +1106,8 @@ final class Recs {
                     (p.pkg != null ? on : off).add(p);
                 }
                 if (on.isEmpty() && off.isEmpty()) error = Ui.tr("Gemini's titles weren't found on TMDB");
+            } catch (java.net.SocketTimeoutException e) {
+                error = Ui.tr("Gemini took too long to answer. Try again.");
             } catch (Exception e) {
                 error = e.getMessage() == null ? e.toString() : e.getMessage();
             }

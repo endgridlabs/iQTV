@@ -23,8 +23,12 @@ import java.util.List;
 final class Gemini {
     private Gemini() {}
 
-    /** The models tried in order: an older name answers 404 once Google retires it, and the next is tried. */
-    private static final String[] MODELS = {"gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash"};
+    /**
+     * The models tried in order: a retired name answers 404 (the 2.5 models are closed to new keys since 2026), a busy one
+     * 503, and the next is tried. Flash-Lite first: a list of titles needs no thinking, and on a TV the answer must come
+     * in seconds (measured: Flash-Lite 3.6 s; 3.8 Flash over a minute, 33 s with thinking set to low).
+     */
+    private static final String[] MODELS = {"gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-3.8-flash"};
 
     static final class Answer {
         String text = "";                              // Gemini's one-line answer
@@ -71,7 +75,7 @@ final class Gemini {
         HttpURLConnection c = (HttpURLConnection) new URL("https://generativelanguage.googleapis.com/v1beta/models/" + model
                 + ":generateContent").openConnection();
         c.setConnectTimeout(10000);
-        c.setReadTimeout(30000);
+        c.setReadTimeout(45000);
         c.setDoOutput(true);
         c.setRequestMethod("POST");
         c.setRequestProperty("Content-Type", "application/json");
@@ -82,6 +86,7 @@ final class Gemini {
         try {
             int code = c.getResponseCode();
             if (code == 404) throw new NotFound("Gemini has no model " + model);
+            if (code == 500 || code == 503) throw new NotFound(Ui.tr("Gemini is busy right now. Try again in a minute."));
             if (code == 400 || code == 401 || code == 403) throw new IOException(Ui.tr("Gemini didn't accept the key"));
             if (code == 429) throw new IOException(Ui.tr("Gemini's free limit is used up for now"));
             if (code != 200) throw new IOException("Gemini returned HTTP " + code);
