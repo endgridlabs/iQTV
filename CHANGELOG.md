@@ -7,7 +7,7 @@
   new one. Settings start fresh.
 - **Search with Gemini** from the Search tab and a remote's search key. The mic button stays Google Assistant's: a
   voice remote's sound reaches only the TV's assistant. Assistant result cards still can't open a show while the
-  stock home screen is off; ask it "play … on Netflix" instead.
+  stock home screen is off; voice commands like "open YouTube" still work.
 
 ## 1.1.0 — smoother, and easier to browse
 
