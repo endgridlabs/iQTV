@@ -471,7 +471,11 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         // Not on Android 8 to 11: on older GPUs (a Mi Box 3's Mali-450) redrawing and compositing a big layer on every
         // frame cost more than drawing straight to the screen (measured: focus on the picks 33 → 12 ms a frame, the
         // drawer 19 → 17 ms).
-        for (View v : new View[] {heroLayer, status, platter, tiles, drawerLayer, sheetLayer}) v.setLayerType(Ui.LEGACY ? LAYER_TYPE_NONE : LAYER_TYPE_HARDWARE, null);        for (View v : new View[] {sky, heroLayer, status, platter, tiles, drawerLayer, sheetLayer, toastLayer}) {
+        for (View v : new View[] {heroLayer, status, platter, tiles, drawerLayer, sheetLayer}) v.setLayerType(Ui.LEGACY ? LAYER_TYPE_NONE : LAYER_TYPE_HARDWARE, null);
+        // The Top Shelf's dock glass (the platter layer) is redrawn only when the dock moves: a texture even on older TVs,
+        // so its blurred fill isn't painted again on every frame (measured on a OnePlus TV: 12% janky frames, 6.5% without).
+        if (TOP_SHELF) platter.setLayerType(LAYER_TYPE_HARDWARE, null);
+        for (View v : new View[] {sky, heroLayer, status, platter, tiles, drawerLayer, sheetLayer, toastLayer}) {
             v.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);   // TalkBack reads the items (Spoken)
             addView(v);
         }
@@ -665,7 +669,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         measure(status, Math.round(1160 * kk), Math.round(240 * kk));
         // Sized to what they draw (the glass and its shadow; the grown tiles and their shadows): smaller layers are
         // cheaper for the GPU to composite on every frame of the drawer animation.
-        measure(platter, width, Math.round(320 * kk));
+        measure(platter, width, Math.round((TOP_SHELF ? 360 : 320) * kk));   // the Top Shelf's: the dock's glass tray
         measure(tiles, width, Math.round((TOP_SHELF ? 360 : 270) * kk));   // the Top Shelf's: bigger tiles, their tray
         measure(drawerLayer, width, Math.round(600 * kk));
         measure(sheetLayer, width, height);
@@ -683,7 +687,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         sky.layout(0, 0, width, height);
         place(heroLayer, 0, 0);
         place(status, width - status.getMeasuredWidth(), 0);
-        place(platter, 0, Math.round(750 * kk));
+        place(platter, 0, Math.round((TOP_SHELF ? S_DOCK_TOP - 80 : 750) * kk));   // the Top Shelf's: with the dock
         place(tiles, 0, Math.round((TOP_SHELF ? S_DOCK_TOP - 80 : 790) * kk));   // the Top Shelf's dock is higher
         place(drawerLayer, 0, Math.round(470 * kk));
         sheetLayer.layout(0, 0, width, height);
@@ -905,7 +909,14 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             float shown = 1 - Ui.clamp(info.value);
             dockMotion(dockAt);
             show(tiles, home * shown * dockAt[1], lift + dockAt[0]);
-            if (dockGlass()) tiles.invalidate();   // the glass shows the photo where the tray is now
+            // The dock's glass tray is the platter layer, moved with it; redrawn only when it moved (the glass shows
+            // the photo where it is now), not when the focus moves along the apps.
+            float trayY = lift + dockAt[0];
+            show(platter, home * shown * dockAt[1], trayY);
+            if (dockGlass() && trayY != platterDrawnAt) {
+                platterDrawnAt = trayY;
+                platter.invalidate();
+            }
             show(status, 0, lift);
         } else {
             show(tiles, home, lift);
@@ -1045,7 +1056,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 scene.setFrost(frostOf(b));
                 scene.setGlassImage(glassOf(b));
             }
-            statusDirty = drawerDirty = tilesDirty = true;   // the dock's glass shows the new photo too
+            statusDirty = drawerDirty = true;
+            platter.invalidate();   // the dock's glass shows the new photo too
             return;
         }
         long up = SystemClock.uptimeMillis();
@@ -1398,6 +1410,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     private final RectF trayRect = new RectF();
+    private float platterDrawnAt = Float.NaN;
 
     /**
      * The tray behind Your Apps, as tvOS-style docks have it: Liquid Glass (the photo shows through, lightly blurred,
@@ -1418,7 +1431,11 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     /** Shelf layer: the glass bar and its shadow (it only changes with the background). */
     private void drawPlatter(Canvas c) {
-        if (shelf.isEmpty() || TOP_SHELF) return;   // the Top Shelf's dock sits on the photo, without glass
+        if (TOP_SHELF) {
+            if (dockGlass()) drawDockGlass(c);   // the Top Shelf's dock: its glass tray, if any
+            return;
+        }
+        if (shelf.isEmpty()) return;
         float radius = (TILE_RADIUS + SHELF_PAD) * k;
         tmp.set(platterRect);
         tmp.offset(0, 18 * k);
@@ -1508,7 +1525,6 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     private void drawTiles(Canvas c) {
-        if (dockGlass()) drawDockGlass(c);
         // The focused one last: it grows over its neighbors without being covered by them.
         int top = -1;
         float most = 0.02f;

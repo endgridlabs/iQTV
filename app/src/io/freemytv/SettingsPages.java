@@ -87,7 +87,7 @@ final class SettingsPages {
                 out.add(new Opt(Ui.tr("Recommendations")).chevron().ok(() -> host.open(recommendations(host))));
                 out.add(new Opt(Ui.tr("Home Rows")).chevron().ok(() -> host.open(homeRows(host))));
                 out.add(new Opt(Ui.tr("Dock glass")).value(dockGlassName(Prefs.dockGlass()))
-                        .hint(Ui.tr("The glass behind Your Apps: Liquid (the photo shows through), Frosted (softer) or Off."))
+                        .hint(Ui.tr("The glass behind Your Apps on the home screen."))
                         .ok(() -> { stepDockGlass(1); host.refresh(); })
                         .step(dir -> { stepDockGlass(dir); host.refresh(); }));
                 out.add(new Opt(Ui.tr("Screensaver")).chevron().ok(() -> host.open(screensaver(host))));

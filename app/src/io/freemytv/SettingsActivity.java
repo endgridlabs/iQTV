@@ -161,9 +161,14 @@ public class SettingsActivity extends Activity {
         private static final float LIST_ROW_H = 68, LIST_ROW_GAP = 6;
         private static final int PICK_VISIBLE = 9;
         private static final float LIST_X = 1000, LIST_R = 1824, LIST_TOP = 186, ROW_GAP = 8, CHOICE_H = 104;
-        // The main menu: eight rows, then the comparison, the picks (with the Watchmode credit) and two notices, all on
-        // one 1080 px screen: the rows share the 462 px that seven took.
-        private static final float MAIN_TOP = 140, ROW_H = 53.75f, MAIN_GAP = 4;
+        // The main menu: nine rows, each a card with a colored symbol (as tvOS-style launchers set them out), then the
+        // picks' status; the comparison and the notices are on the Status page.
+        private static final float MAIN_TOP = 176, ROW_H = 62, MAIN_GAP = 10;
+        private static final int MAIN_ROWS = 9;
+        /** Each main row's symbol and its tile's color. */
+        private static final String[] MAIN_SYMBOLS = {"home", "sparkles", "settings", "apps", "tv", "gamepad", "bedtime", "tv_settings", "sync"};
+        private static final int[] MAIN_COLORS = {0xFF0A84FF, 0xFF5E5CE6, 0xFFFF375F, 0xFFFF9F0A, 0xFF30B0C7, 0xFF8E8E93, 0xFFBF5AF2,
+                0xFF636366, 0xFF30D158};
         private static final int AMBER = 0xFFFFC266, INK = 0xFF1C1C1E;
 
         private final SettingsActivity activity;
@@ -201,7 +206,8 @@ public class SettingsActivity extends Activity {
         private long startedAt, lastNanos, pendingAt, lastSky;
         private int w, h;
         private float k = 1;
-        private Paint title, subtitle, version, rowLabel, rowValue, rowSub, header, cellLabel, cellValue, warn, spinner, white, shadow;
+        private Paint title, subtitle, version, rowLabel, rowValue, rowSub, header, cellLabel, cellValue, warn, spinner, white, shadow,
+                tile, card;
         private TextPaint notice;
 
         private final Runnable poll = new Runnable() {
@@ -278,7 +284,7 @@ public class SettingsActivity extends Activity {
                     }
                     String[] names = {Ui.tr("Screensaver, preview"), Ui.tr("Personalize"),
                             Ui.tr("Shelf"), Ui.tr("Top Buttons"), Ui.tr("Remote Buttons"), Ui.tr("Sleep Timer"),
-                            Ui.tr("TV Settings")};
+                            Ui.tr("TV Settings"), Ui.tr("Status")};
                     return row - 1 < names.length ? names[row - 1] : "";
                 }
                 case HOME_CHOICE: {
@@ -398,6 +404,9 @@ public class SettingsActivity extends Activity {
             spinner.setStrokeCap(Paint.Cap.ROUND);
             spinner.setStrokeWidth(3.5f * k);
             white = new Paint(Paint.ANTI_ALIAS_FLAG);
+            tile = new Paint(Paint.ANTI_ALIAS_FLAG);
+            card = new Paint(Paint.ANTI_ALIAS_FLAG);
+            card.setColor(0x14FFFFFF);
             white.setColor(0xFFF5F5F7);
             shadow = new Paint(Paint.ANTI_ALIAS_FLAG);
             shadow.setMaskFilter(new BlurMaskFilter(22 * k, BlurMaskFilter.Blur.NORMAL));
@@ -419,7 +428,7 @@ public class SettingsActivity extends Activity {
 
         private int rowCount() {
             switch (screen) {
-                case MAIN: return 8;
+                case MAIN: return MAIN_ROWS;
                 case HOME_CHOICE: return 2;
                 case HOME_SETTINGS: return Math.min(SETTINGS_VISIBLE, settingLabels().length);
                 case PICKER: return Math.min(PICK_VISIBLE, pickLabels.size());
@@ -605,10 +614,10 @@ public class SettingsActivity extends Activity {
             boolean working = busy();
             String busyText = busyText();
             String mode = freeActive() ? "EndGrid iQTV+" : Ui.tr("Original");
-            String[] labels = {Ui.tr("Home Screen"), Ui.tr("Screensaver"),
-                    Ui.tr("Personalize"), Ui.tr("Shelf"), Ui.tr("Top Buttons"),
-                    Ui.tr("Remote Buttons"), Ui.tr("Sleep Timer"), Ui.tr("TV Settings")};
-            String[] values = {working ? "" : mode, Ui.tr("Preview"), "", "", "", "", "", ""};
+            String[] labels = mainLabels();
+            String[] values = {working ? "" : mode, Ui.tr("Preview"), "", "", "", "", "", "", ""};
+            header.setAlpha(255);
+            c.drawText(Brand.NAME.toUpperCase(Ui.locale()), LIST_X * k + 30 * k, (MAIN_TOP - 26) * k, header);
             for (int i = 0; i < labels.length; i++) {
                 float y = (MAIN_TOP + i * (ROW_H + MAIN_GAP)) * k;
                 rowRect.set(LIST_X * k, y, LIST_R * k, y + ROW_H * k);
@@ -617,7 +626,13 @@ public class SettingsActivity extends Activity {
                 int ink = off ? blend(0x73FFFFFF, 0x731C1C1E, f) : blend(0xF2FFFFFF, INK, f);
                 rowLabel.setColor(ink);
                 float base = rowRect.centerY() + Ui.halfCap(rowLabel);
-                c.drawText(labels[i], rowRect.left + 30 * k, base, rowLabel);
+                // The row's symbol on its colored tile (dimmed when the row is unavailable).
+                float ts = 40 * k, tx = rowRect.left + 22 * k, ty = rowRect.centerY() - ts / 2;
+                tmp.set(tx, ty, tx + ts, ty + ts);
+                tile.setColor(off ? Ui.alpha(MAIN_COLORS[i], 0.4f) : MAIN_COLORS[i]);
+                c.drawRoundRect(tmp, 11 * k, 11 * k, tile);
+                Symbols.draw(getContext(), c, MAIN_SYMBOLS[i], tmp.centerX(), tmp.centerY(), 24 * k, off ? 0x99FFFFFF : 0xFFFFFFFF);
+                c.drawText(labels[i], tx + ts + 20 * k, base, rowLabel);
                 float right = rowRect.right - 30 * k;
                 if (off) {
                     rowValue.setColor(blend(0x59FFFFFF, 0x591C1C1E, f));
@@ -660,9 +675,42 @@ public class SettingsActivity extends Activity {
                 c.restore();
                 y += errorLayout.getLineBaseline(errorLayout.getLineCount() - 1) - errorLayout.getLineBaseline(0) + 46 * k;
             }
-            y = drawComparison(c, y);
-            y = drawRecs(c, y + 26 * k);
-            drawNotices(c, y + 40 * k);
+            drawRecs(c, y + 26 * k);
+        }
+
+        private static String[] mainLabels() {
+            return new String[] {Ui.tr("Home Screen"), Ui.tr("Screensaver"), Ui.tr("Personalize"), Ui.tr("Shelf"),
+                    Ui.tr("Top Buttons"), Ui.tr("Remote Buttons"), Ui.tr("Sleep Timer"), Ui.tr("TV Settings"), Ui.tr("Status")};
+        }
+
+        /** Status: how the two home screens measured (Home button, memory), and what EndGrid iQTV+ did lately. */
+        private SettingsPages.Page statusPage() {
+            return new SettingsPages.Page() {
+                @Override String title() { return Ui.tr("Status"); }
+
+                @Override List<SettingsPages.Opt> rows() {
+                    List<SettingsPages.Opt> out = new ArrayList<>();
+                    JSONObject metrics = state.optJSONObject("metrics");
+                    JSONObject a = metrics == null ? null : metrics.optJSONObject(HomeMode.ORIGINAL);
+                    JSONObject b = metrics == null ? null : metrics.optJSONObject(HomeMode.FREE);
+                    String[][] rows = {{Ui.tr("Home button"), "homeMs"}, {Ui.tr("Free memory"), "memAvailableMB"},
+                            {Ui.tr("Home screen memory"), "homePssMB"}};
+                    for (String[] r : rows) {
+                        out.add(new SettingsPages.Opt(r[0]).value(metric(getContext(), a, r[1]) + "  →  " + metric(getContext(), b, r[1]))
+                                .hint(Ui.tr("Original  →  EndGrid iQTV+, measured at each switch.")));
+                    }
+                    JSONArray notices = state.optJSONArray("notices");
+                    for (int i = 0; notices != null && i < notices.length() && out.size() < SETTINGS_VISIBLE; i++) {
+                        JSONObject o = notices.optJSONObject(i);
+                        if (o == null) continue;
+                        String text = o.optString("text");
+                        out.add(new SettingsPages.Opt(text).value(ago(o.optLong("at"))).hint(text));
+                    }
+                    return out;
+                }
+
+                @Override String hint() { return Ui.tr("Original  →  EndGrid iQTV+, measured at each switch."); }
+            };
         }
 
         /** Home screen picks: status, and the credit TMDB asks for. */
@@ -689,9 +737,13 @@ public class SettingsActivity extends Activity {
             return y + (Config.WATCHMODE_KEY.trim().isEmpty() ? 78 : 108) * k;
         }
 
-        /** List row: no background; focused, white with a shadow (the Apple TV focus). Returns how focused it is. */
+        /** List row: a soft card; focused, white with a shadow (the Apple TV focus). Returns how focused it is. */
         private float drawRowBackground(Canvas c, int i) {
             float f = Ui.clamp(pop[i].value);
+            if (f < 0.99f) {
+                card.setAlpha(Math.round(0x14 * (1 - f)));
+                c.drawRoundRect(rowRect, 18 * k, 18 * k, card);
+            }
             if (f > 0.01f) {
                 float s = 1 + 0.02f * f;
                 float cx = rowRect.centerX(), cy = rowRect.centerY();
@@ -706,42 +758,6 @@ public class SettingsActivity extends Activity {
                 rowRect.set(tmp);
             }
             return f;
-        }
-
-        private float drawComparison(Canvas c, float y) {
-            float x = LIST_X * k + 30 * k, colA = LIST_R * k - 220 * k, colB = LIST_R * k - 30 * k;
-            c.drawText(Ui.tr("COMPARISON"), x, y, header);
-            cellValue.setColor(0x73FFFFFF);
-            c.drawText(Ui.tr("Original"), colA, y, cellValue);
-            c.drawText("EndGrid iQTV+", colB, y, cellValue);
-            cellValue.setColor(0xD9FFFFFF);
-            JSONObject metrics = state.optJSONObject("metrics");
-            JSONObject a = metrics == null ? null : metrics.optJSONObject(HomeMode.ORIGINAL);
-            JSONObject b = metrics == null ? null : metrics.optJSONObject(HomeMode.FREE);
-            String[][] rows = {{Ui.tr("Home button"), "homeMs"}, {Ui.tr("Free memory"), "memAvailableMB"},
-                    {Ui.tr("Home screen memory"), "homePssMB"}};
-            for (int i = 0; i < rows.length; i++) {
-                float base = y + (46 + 40 * i) * k;
-                c.drawText(rows[i][0], x, base, cellLabel);
-                c.drawText(metric(getContext(), a, rows[i][1]), colA, base, cellValue);
-                c.drawText(metric(getContext(), b, rows[i][1]), colB, base, cellValue);
-            }
-            return y + (46 + 40 * rows.length) * k;
-        }
-
-        private void drawNotices(Canvas c, float y) {
-            float x = LIST_X * k + 30 * k;
-            c.drawText(Ui.tr("NOTICES"), x, y, header);
-            JSONArray notices = state.optJSONArray("notices");
-            int shown = 0;
-            for (int i = 0; notices != null && i < notices.length() && shown < 2; i++) {
-                JSONObject o = notices.optJSONObject(i);
-                if (o == null) continue;
-                String line = ago(o.optLong("at")) + " · " + o.optString("text");
-                c.drawText(TextUtils.ellipsize(line, notice, 790 * k, TextUtils.TruncateAt.END).toString(), x, y + (42 + 38 * shown) * k, notice);
-                shown++;
-            }
-            if (shown == 0) c.drawText(Ui.tr("None yet."), x, y + 42 * k, notice);
         }
 
         /** Home screen choice: EndGrid iQTV+ or the original, with a check on the one in use. */
@@ -1539,8 +1555,12 @@ public class SettingsActivity extends Activity {
                 pickScroll = 0;
                 screen = POWER;
                 focus = 0;
-            } else {
+            } else if (focus == 7) {
                 activity.startActivity(new Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            } else {
+                pages.clear();
+                openPage(statusPage());
+                return;
             }
             for (Spring s : pop) s.snap(0);
             invalidate();
