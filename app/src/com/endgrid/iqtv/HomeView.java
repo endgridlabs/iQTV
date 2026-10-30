@@ -4828,7 +4828,18 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         return null;
     }
 
+    /**
+     * The TV's own microphone failed once (on OnePlus TVs only the remote hears, and only Google's speech screen gets
+     * its sound): Speak then goes straight to that screen, and what it heard goes to Gemini all the same.
+     */
+    private static boolean speechScreen;
+
     private void startListening() {
+        if (speechScreen) {
+            stopListening();
+            startVoiceSearch();
+            return;
+        }
         if (!android.speech.SpeechRecognizer.isRecognitionAvailable(getContext())) {
             searchFailed(Ui.tr("Voice search isn't available on this TV."));
             return;
@@ -4865,6 +4876,14 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 }
                 @Override public void onError(int error) {
                     if (searchState != SearchPanel.LISTENING) return;
+                    if (error == android.speech.SpeechRecognizer.ERROR_AUDIO || error == android.speech.SpeechRecognizer.ERROR_CLIENT
+                            || error == android.speech.SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
+                        // No microphone for us (a TV that hears only through the remote): Google's own speech screen.
+                        speechScreen = true;
+                        stopListening();
+                        startVoiceSearch();
+                        return;
+                    }
                     searchFailed(error == android.speech.SpeechRecognizer.ERROR_NO_MATCH || error == android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT
                             ? Ui.tr("Didn't catch that. Try again.")
                             : error == android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ? Ui.tr("The microphone isn't allowed.")
@@ -4937,6 +4956,10 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     /** What was typed or heard (HomeActivity hands speech over): the matches become the first row. */
     void voiceResult(String text) {
         if (text == null || text.trim().isEmpty()) return;
+        if (searchOpen) {
+            runSearch(text.trim());   // from the Search screen's Speak: Gemini answers it
+            return;
+        }
         searchQuery = text.trim();
         showToast(Ui.trf("Searching for “{query}”…", "query", searchQuery));
         recs.search(searchQuery, (results, error) -> {
