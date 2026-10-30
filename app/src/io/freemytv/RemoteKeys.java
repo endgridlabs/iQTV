@@ -21,6 +21,8 @@ import android.view.KeyEvent;
  * (partnercustomizer) turns into PatchWall. The filter sees it first, and by default it opens the home screen.
  * On Xiaomi TVs sold in Russia, the Okko, VK, Rutube, KION, Wink and IVI buttons are global keys too, for Xiaomi's
  * hot-key receiver (partnercustomizer's GlobalKeyReceiver).
+ * On every TV, the Assistant (mic) key and the search key open EndGrid iQTV+'s Search (Gemini), listening: the system
+ * would open the Google Assistant, whose results need the stock home screen that EndGrid iQTV+ mode turns off.
  */
 final class RemoteKeys {
     private RemoteKeys() {}
@@ -51,6 +53,15 @@ final class RemoteKeys {
 
     /** Opens the app for this key on its first press. True if the key is ours and in use (it is then consumed). */
     static boolean onKey(Context c, KeyEvent e) {
+        if (e.getKeyCode() == KeyEvent.KEYCODE_ASSIST || e.getKeyCode() == KeyEvent.KEYCODE_SEARCH
+                || e.getKeyCode() == KeyEvent.KEYCODE_VOICE_ASSIST) {
+            if (e.getAction() == KeyEvent.ACTION_DOWN && e.getRepeatCount() == 0) {
+                AppLog.w("remote key " + e.getKeyCode() + " -> Search");
+                c.startActivity(new Intent(HomeActivity.ACTION_SEARCH).setClassName(c, HomeActivity.class.getName())
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            }
+            return true;
+        }
         if (!supported()) return false;
         // BUTTON_3 is also a game controller's button: keys from a gamepad or a joystick are left alone.
         int source = e.getSource();

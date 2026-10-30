@@ -2383,9 +2383,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 }
                 return true;
             case KeyEvent.KEYCODE_SEARCH:
-                // A remote's search or mic key that reaches the app (the Assistant key itself stays the system's).
-                if (!TOP_SHELF || !picksOn()) return false;
-                if (!down && e.getRepeatCount() == 0 && !sheetOpen) startVoiceSearch();
+            case KeyEvent.KEYCODE_ASSIST:
+                // A remote's search or mic key that reaches the app (RemoteKeyService takes it first in EndGrid iQTV+ mode).
+                if (!down && e.getRepeatCount() == 0) searchFromRemote();
                 return true;
             default:
                 return false;
@@ -4624,6 +4624,21 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         wake();
     }
 
+    /** The remote's Assistant or search key: the Search screen, already listening (Gemini answers what's said). */
+    void searchFromRemote() {
+        if (!TOP_SHELF) {
+            startVoiceSearch();
+            return;
+        }
+        if (sheetOpen || weatherOpen) reset(false);
+        if (!searchOpen) openSearch();
+        if (searchTyping) stopTyping(false);
+        stopListening();
+        searchFocus = SearchPanel.SPEAK;
+        startListening();
+        wake();
+    }
+
     private void closeSearch() {
         stopListening();
         if (searchTyping) stopTyping(false);
@@ -4798,6 +4813,21 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     static final int MIC_REQUEST = 42;
 
+    /**
+     * The TV's speech recognizer: the one set in the system, else the first installed (the Google app's). Android can
+     * clear the setting when EndGrid iQTV+ becomes the TV's assistant; the recognizer itself stays.
+     */
+    private android.content.ComponentName recognitionService() {
+        String set = android.provider.Settings.Secure.getString(getContext().getContentResolver(), "voice_recognition_service");
+        android.content.ComponentName c = set == null || set.isEmpty() ? null : android.content.ComponentName.unflattenFromString(set);
+        if (c != null) return c;
+        for (android.content.pm.ResolveInfo r : getContext().getPackageManager().queryIntentServices(
+                new android.content.Intent(android.speech.RecognitionService.SERVICE_INTERFACE), 0)) {
+            return new android.content.ComponentName(r.serviceInfo.packageName, r.serviceInfo.name);
+        }
+        return null;
+    }
+
     private void startListening() {
         if (!android.speech.SpeechRecognizer.isRecognitionAvailable(getContext())) {
             searchFailed(Ui.tr("Voice search isn't available on this TV."));
@@ -4808,7 +4838,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             return;   // micAllowed() continues
         }
         if (recognizer == null) {
-            recognizer = android.speech.SpeechRecognizer.createSpeechRecognizer(getContext());
+            recognizer = android.speech.SpeechRecognizer.createSpeechRecognizer(getContext(), recognitionService());
             recognizer.setRecognitionListener(new android.speech.RecognitionListener() {
                 @Override public void onReadyForSpeech(android.os.Bundle b) {}
                 @Override public void onBeginningOfSpeech() {}

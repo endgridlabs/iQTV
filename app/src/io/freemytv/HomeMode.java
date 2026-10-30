@@ -253,18 +253,20 @@ final class HomeMode {
     }
 
     /**
-     * The remote's app buttons (RemoteKeys) need an accessibility service that only filters those keys. It is on only
-     * on TCL, Vestel, KTC, Sony and Xiaomi TVs (and Formovie projectors) in EndGrid iQTV+ mode, and goes off with Original. Android turns it off when this app is updated, so the
-     * boot check and an update turn it back on.
+     * The remote's Assistant key and app buttons (RemoteKeys) need an accessibility service that only filters those
+     * keys. It is on in EndGrid iQTV+ mode, and goes off with Original. Android turns it off when this app is updated,
+     * so the boot check and an update turn it back on.
      */
     static void ensureRemoteService(Context c, long delayMs) {
-        if (RemoteKeys.supported()) ModeJob.schedule(c, ModeJob.REMOTE, null, delayMs);
+        ModeJob.schedule(c, ModeJob.REMOTE, null, delayMs);
     }
 
     static void ensureRemoteServiceNow(Context app) {
-        if (!RemoteKeys.supported() || !FREE.equals(state(app).optString("mode"))) return;
+        if (!FREE.equals(state(app).optString("mode"))) return;
         try (Adb adb = Adb.connect(app, 10_000, null)) {
             remoteService(app, adb, true);
+            // TVs already in EndGrid iQTV+ mode before the Assistant key was ours get it with this update.
+            if (!(PKG + "/.HomeActivity").equals(adb.shell("settings get secure assistant").trim())) assistant(app, adb, true);
         } catch (IOException e) {
             AppLog.w("remote buttons service: " + e.getMessage());
         }
@@ -295,7 +297,40 @@ final class HomeMode {
         // The screensaver's albums: photos on the TV's storage and USB drives.
         String photos = Build.VERSION.SDK_INT >= 33 ? "android.permission.READ_MEDIA_IMAGES" : "android.permission.READ_EXTERNAL_STORAGE";
         adb.shell("pm " + (on ? "grant " : "revoke ") + PKG + " " + photos);
+        // Search's microphone: the remote's Assistant key opens it listening, with no question first.
+        adb.shell("pm " + (on ? "grant " : "revoke ") + PKG + " android.permission.RECORD_AUDIO");
         AppLog.w("watch access " + (on ? "on" : "off"));
+    }
+
+    private static final String ASSISTANT_ROLE = "android.app.role.ASSISTANT";
+    private static final Pattern PACKAGE = Pattern.compile("[\\w.]+");
+
+    /**
+     * The remote's Assistant key: Android handles it before any key filter and opens the TV's assistant, so EndGrid
+     * iQTV+ becomes the assistant (HomeActivity's ASSIST: Search with Gemini). The Google Assistant's own results need
+     * the stock home screen, which this mode turns off. Original gives the role back to the app that had it.
+     */
+    private static void assistant(Context c, Adb adb, boolean on) throws IOException {
+        if (Build.VERSION.SDK_INT < 29) return;   // no roles: the Assistant key stays the system's
+        if (on) {
+            String was = adb.shell("settings get secure voice_interaction_service").trim();
+            if (was.isEmpty() || was.equals("null")) was = adb.shell("settings get secure assistant").trim();
+            String pkg = packageOf(was);
+            if (pkg != null && PACKAGE.matcher(pkg).matches() && !pkg.equals(PKG)) {
+                JSONObject s = state(c);
+                try { s.put("originalAssistant", pkg); } catch (JSONException ignored) {}
+                save(c, s);
+            }
+            adb.shell("cmd role add-role-holder --user 0 " + ASSISTANT_ROLE + " " + PKG);
+        } else {
+            String pkg = state(c).optString("originalAssistant", ASSISTANT[0]);   // unknown: the Google Assistant
+            if (PACKAGE.matcher(pkg).matches() && adb.shell("pm path " + pkg).contains("package:")) {
+                adb.shell("cmd role add-role-holder --user 0 " + ASSISTANT_ROLE + " " + pkg);   // one holder: replaces ours
+            } else {
+                adb.shell("cmd role remove-role-holder --user 0 " + ASSISTANT_ROLE + " " + PKG);
+            }
+        }
+        AppLog.w("assistant " + (on ? "EndGrid iQTV+" : "given back"));
     }
 
     private static final String REMOTE_SERVICE = PKG + "/" + PKG + ".RemoteKeyService";
@@ -451,12 +486,15 @@ final class HomeMode {
             s.put("mode", FREE).put("since", System.currentTimeMillis()).put("homeReverted", false)
                     .put("disabled", new JSONArray(sorted(disabled))).put("setupHome", setupHome);
             save(c, s);
-            if (RemoteKeys.supported()) {
-                try {
-                    remoteService(c, adb, true);
-                } catch (IOException e) {
-                    AppLog.w("remote buttons service: " + e.getMessage());
-                }
+            try {
+                remoteService(c, adb, true);
+            } catch (IOException e) {
+                AppLog.w("remote buttons service: " + e.getMessage());
+            }
+            try {
+                assistant(c, adb, true);
+            } catch (IOException e) {
+                AppLog.w("assistant: " + e.getMessage());
             }
             try {
                 watchAccess(adb, true);
@@ -517,6 +555,11 @@ final class HomeMode {
                 remoteService(c, adb, false);
             } catch (IOException e) {
                 AppLog.w("remote buttons service: " + e.getMessage());
+            }
+            try {
+                assistant(c, adb, false);
+            } catch (IOException e) {
+                AppLog.w("assistant: " + e.getMessage());
             }
             try {
                 watchAccess(adb, false);

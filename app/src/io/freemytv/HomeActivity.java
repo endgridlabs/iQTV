@@ -39,6 +39,15 @@ public class HomeActivity extends Activity {
         home = new HomeView(this);
         setContentView(home);
         getWindow().setBackgroundDrawable(null);
+        if (fromRemote(getIntent())) home.post(home::searchFromRemote);
+    }
+
+    /** The remote's Assistant key (RemoteKeys): the Search screen, listening. */
+    static final String ACTION_SEARCH = "io.freemytv.action.SEARCH";
+
+    /** Our search key, or the system's Assistant key with EndGrid iQTV+ as the TV's assistant. */
+    private static boolean fromRemote(Intent intent) {
+        return ACTION_SEARCH.equals(intent.getAction()) || Intent.ACTION_ASSIST.equals(intent.getAction());
     }
 
     @Override protected void onResume() {
@@ -60,7 +69,8 @@ public class HomeActivity extends Activity {
     /** Home button pressed on the home screen: back to the entry state (focus on the first app, sheet closed). */
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        if (home != null) home.reset(true);
+        if (home == null) return;
+        if (fromRemote(intent)) home.searchFromRemote(); else home.reset(true);
     }
 
     /** Voice search: what the speech recognizer heard goes to the home screen's row. */
