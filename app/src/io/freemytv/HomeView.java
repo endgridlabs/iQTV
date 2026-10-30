@@ -124,6 +124,15 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     // The weather pill at the end of the top bar (→ from Settings), and the Weather panel it opens (shares More Info's
     // fade, `info`; `overlayWeather` says which of the two the fade draws, until it has faded out).
     private boolean weatherFocus, weatherOpen, overlayWeather;
+    // The Search screen (SearchPanel): open, what it draws over (as overlayWeather), typing with the TV's keyboard
+    // into searchTyped, its focus, what's happening and the question; the results came from Gemini (their row's name).
+    private boolean searchOpen, overlaySearch, searchTyping, searchByGemini;
+    private int searchFocus, searchState;
+    private String searchText = "", searchMessage = "";
+    private final android.text.SpannableStringBuilder searchTyped = new android.text.SpannableStringBuilder();
+    private SearchPanel searchPanel;
+    private android.speech.SpeechRecognizer recognizer;
+    private long searchOpenedAt;
     // Your initial at the right of the top bar (→ after the weather): OK opens Settings.
     private boolean profileFocus;
     private final Spring profilePill = new Spring(0.26f, 0.85f, 0);
@@ -602,6 +611,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             weatherOpen = false;
             weatherFocus = false;
             profileFocus = false;
+            if (searchOpen) closeSearch();
             if (shelfTab != TAB_HOME) {
                 shelfTab = TAB_HOME;
                 rows.clear();
@@ -877,7 +887,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         // Busy: something is moving, or the sheet or the drawer is open.
         boolean busy = tilesMoving || statusMoving || heroMoving || drawerItemsMoving || gridMoving || drawerMoving
                 || sheetMoving || toastFading || heroFading || bgFading || nightMoving || shelfFadeAt != 0 || sheetOpen || sheet.value > 0.001f
-                || drawerOpen || drawer.value > 0.001f || toast != null || !toasts.isEmpty();
+                || drawerOpen || drawer.value > 0.001f || toast != null || !toasts.isEmpty() || searchAnimating();
+        if (searchAnimating()) heroLayer.invalidate();   // the caret, the listening pulse, the spinner
         idle = !busy;
         if (busy) Choreographer.getInstance().postFrameCallback(this);
         else Choreographer.getInstance().postFrameCallbackDelayed(this, 1000);
@@ -2041,7 +2052,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             heroChanged |= weatherPill.target != pillTarget;
             weatherPill.target = pillTarget;
             if (snap) weatherPill.snap(pillTarget);
-            info.target = infoOpen || weatherOpen ? 1 : 0;
+            info.target = infoOpen || weatherOpen || searchOpen ? 1 : 0;
             if (snap) info.snap(info.target);
             heroChanged |= retargetStack(snap);
         }
@@ -2382,7 +2393,10 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     private void back() {
-        if (weatherOpen) {
+        if (searchOpen) {
+            if (searchTyping) stopTyping(false);   // the keyboard was already closed by Back
+            else closeSearch();
+        } else if (weatherOpen) {
             closeWeather();
         } else if (infoOpen) {
             closeInfo();
@@ -2408,6 +2422,10 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     private void move(int dx, int dy) {
+        if (searchOpen) {
+            moveSearch(dx, dy);
+            return;
+        }
         if (infoOpen || weatherOpen) return;   // More Info and Weather: only OK and Back
         if (sheetOpen) {
             moveGrid(dx, dy);
@@ -2528,6 +2546,10 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     private void activate() {
         wake();
+        if (searchOpen) {
+            activateSearch();
+            return;
+        }
         if (weatherOpen) {
             closeWeather();
             return;
@@ -3651,7 +3673,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private void updateRows() {
         List<Recs.Section> sections = new ArrayList<>();
         if (searchResults != null) sections.add(new Recs.Section("search", searchResults.isEmpty()
-                ? Ui.trf("Nothing found for “{query}”", "query", searchQuery) : Ui.trf("Results for “{query}”", "query", searchQuery), searchResults));
+                ? Ui.trf("Nothing found for “{query}”", "query", searchQuery) : searchByGemini ? Ui.trf("Gemini picks for “{query}”", "query", searchQuery)
+                : Ui.trf("Results for “{query}”", "query", searchQuery), searchResults));
         for (Recs.Section s : recs.sections()) {
             Recs.Section shown = forTab(s);
             if (shown != null) sections.add(shown);
@@ -3978,7 +4001,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             c.drawText(Ui.tr("Your Apps"), MARGIN * k, dock + 30 * k, sRowLabel);
         }
         if (info.value > 0.01f) {
-            if (overlayWeather) weatherPanel().drawPanel(c, data.weather, data.weatherAt, w, h, k, Ui.clamp(info.value));
+            if (overlaySearch) searchPanel().draw(c, w, h, k, Ui.clamp(info.value), searchFocus, searchTyping ? searchTyped.toString() : searchText,
+                    searchTyping, searchState, searchMessage, (SystemClock.uptimeMillis() - searchOpenedAt) / 1000f);
+            else if (overlayWeather) weatherPanel().drawPanel(c, data.weather, data.weatherAt, w, h, k, Ui.clamp(info.value));
             else drawInfo(c, Ui.clamp(info.value));
         }
     }
@@ -4500,6 +4525,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (shelfPick == null) return;
         infoOpen = true;
         overlayWeather = false;
+        overlaySearch = false;
         infoText = null;
         retarget(false);
         wake();
@@ -4520,6 +4546,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private void openWeather() {
         weatherOpen = true;
         overlayWeather = true;
+        overlaySearch = false;
         data.refreshIfStale();
         retarget(false);
         wake();
@@ -4577,24 +4604,292 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     static final int VOICE_REQUEST = 41;
 
     /** Search: a box to type in (a title, an actor or a director, with a year to narrow it), or Voice. */
+    // MARK: Search (the Search screen: SearchPanel draws it)
+
+    /** Search in the navigation: the Search screen, on Speak. */
     private void openSearch() {
-        android.widget.EditText field = new android.widget.EditText(activity);
-        field.setSingleLine(true);
-        field.setHint(Ui.tr("A movie, show, actor or director"));
-        field.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
-        android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(activity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-                .setTitle(Ui.tr("Search"))
-                .setView(field)
-                .setPositiveButton(Ui.tr("Search"), (d, which) -> voiceResult(field.getText().toString()))
-                .setNeutralButton(Ui.tr("Voice"), (d, which) -> startVoiceSearch())
-                .setNegativeButton(Ui.tr("Cancel"), null)
-                .create();
-        field.setOnEditorActionListener((v, action, event) -> {
-            dialog.dismiss();
-            voiceResult(field.getText().toString());
-            return true;
+        if (!TOP_SHELF) {
+            startVoiceSearch();
+            return;
+        }
+        searchOpen = true;
+        overlaySearch = true;
+        overlayWeather = false;
+        searchFocus = SearchPanel.SPEAK;
+        searchText = "";
+        searchMessage = "";
+        searchState = SearchPanel.IDLE;
+        searchOpenedAt = SystemClock.uptimeMillis();
+        retarget(false);
+        wake();
+    }
+
+    private void closeSearch() {
+        stopListening();
+        if (searchTyping) stopTyping(false);
+        searchOpen = false;
+        retarget(false);
+        wake();
+    }
+
+    private SearchPanel searchPanel() {
+        if (searchPanel == null) searchPanel = new SearchPanel(getContext());
+        return searchPanel;
+    }
+
+    /** The caret, the listening pulse or the spinner: drawn on every frame while the Search screen shows one. */
+    private boolean searchAnimating() {
+        return searchOpen && (searchTyping || searchState == SearchPanel.LISTENING || searchState == SearchPanel.ASKING);
+    }
+
+    /** Speak and Type on the first row, the suggestions on the second. */
+    private void moveSearch(int dx, int dy) {
+        if (searchTyping) stopTyping(false);   // the keyboard was closed: the arrows are ours again
+        if (searchState == SearchPanel.ASKING) return;
+        int chips = SearchPanel.chips().length;
+        boolean onChips = searchFocus >= SearchPanel.FIRST_CHIP;
+        if (dy > 0 && !onChips) searchFocus = SearchPanel.FIRST_CHIP;
+        else if (dy < 0 && onChips) searchFocus = SearchPanel.SPEAK;
+        else if (dx != 0) {
+            int lo = onChips ? SearchPanel.FIRST_CHIP : SearchPanel.SPEAK, hi = onChips ? SearchPanel.FIRST_CHIP + chips - 1 : SearchPanel.TYPE;
+            searchFocus = Math.max(lo, Math.min(hi, searchFocus + dx));
+        }
+        heroDirty = true;
+        wake();
+    }
+
+    private void activateSearch() {
+        if (searchTyping) stopTyping(false);
+        if (searchState == SearchPanel.ASKING) return;
+        if (searchFocus == SearchPanel.SPEAK) {
+            if (searchState == SearchPanel.LISTENING) stopListening(); else startListening();
+        } else if (searchFocus == SearchPanel.TYPE) {
+            stopListening();
+            startTyping();
+        } else {
+            runSearch(SearchPanel.chips()[searchFocus - SearchPanel.FIRST_CHIP]);
+        }
+        heroDirty = true;
+        wake();
+    }
+
+    private void searchFailed(String message) {
+        searchState = SearchPanel.ERROR;
+        searchMessage = message;
+        heroDirty = true;
+        wake();
+    }
+
+    /** The question: with a Gemini key, Gemini picks the titles; without one, TMDB's search by name. */
+    private void runSearch(String question) {
+        String q = question == null ? "" : question.trim();
+        if (q.isEmpty()) return;
+        searchText = q;
+        searchState = SearchPanel.ASKING;
+        searchMessage = "";
+        heroDirty = true;
+        wake();
+        if (!Gemini.on()) {
+            recs.search(q, (results, error) -> {
+                if (!running || !searchOpen) return;
+                if (!error.isEmpty() && results.isEmpty()) {
+                    searchFailed(Ui.trf("Search didn't work: {error}", "error", error));
+                    return;
+                }
+                closeSearch();
+                showSearchResults(q, results, false);
+            });
+            return;
+        }
+        recs.askGemini(q, (results, answer, error) -> {
+            if (!running || !searchOpen) return;
+            if (results.isEmpty()) {
+                searchFailed(error.isEmpty() ? Ui.tr("Gemini found nothing for that. Try other words.") : error);
+                return;
+            }
+            closeSearch();
+            showSearchResults(q, results, true);
+            if (!answer.isEmpty()) showToast(answer);
         });
-        dialog.show();
+    }
+
+    // Typing: the TV's own keyboard writes into searchTyped through this view's input connection.
+
+    private void startTyping() {
+        searchTyping = true;
+        searchTyped.clear();
+        searchTyped.append(searchText);
+        requestFocus();
+        android.view.inputmethod.InputMethodManager imm = activity.getSystemService(android.view.inputmethod.InputMethodManager.class);
+        if (imm == null) return;
+        imm.restartInput(this);
+        imm.showSoftInput(this, 0);
+    }
+
+    /** The keyboard is done: `search` runs what was typed. */
+    private void stopTyping(boolean search) {
+        if (!searchTyping) return;
+        searchTyping = false;
+        searchText = searchTyped.toString().trim();
+        android.view.inputmethod.InputMethodManager imm = activity.getSystemService(android.view.inputmethod.InputMethodManager.class);
+        if (imm != null) {
+            imm.hideSoftInputFromWindow(getWindowToken(), 0);
+            imm.restartInput(this);
+        }
+        if (search) runSearch(searchText);
+        heroDirty = true;
+        wake();
+    }
+
+    @Override public boolean onCheckIsTextEditor() {
+        return searchTyping;
+    }
+
+    @Override public android.view.inputmethod.InputConnection onCreateInputConnection(android.view.inputmethod.EditorInfo out) {
+        if (!searchTyping) return null;
+        out.inputType = android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_AUTO_CORRECT;
+        // The keyboard at the bottom, not over the whole screen: the question shows in the Search screen as it's typed.
+        out.imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH | android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI
+                | android.view.inputmethod.EditorInfo.IME_FLAG_NO_FULLSCREEN;
+        out.initialSelStart = out.initialSelEnd = searchTyped.length();
+        return new android.view.inputmethod.BaseInputConnection(this, true) {
+            @Override public android.text.Editable getEditable() { return searchTyped; }
+            @Override public boolean performEditorAction(int action) {
+                stopTyping(true);
+                return true;
+            }
+            @Override public boolean endBatchEdit() {
+                heroDirty = true;
+                wake();
+                return super.endBatchEdit();
+            }
+            @Override public boolean commitText(CharSequence text, int newCursorPosition) {
+                boolean r = super.commitText(text, newCursorPosition);
+                heroDirty = true;
+                wake();
+                return r;
+            }
+            @Override public boolean deleteSurroundingText(int before, int after) {
+                boolean r = super.deleteSurroundingText(before, after);
+                heroDirty = true;
+                wake();
+                return r;
+            }
+            @Override public boolean sendKeyEvent(KeyEvent e) {
+                // Some keyboards send Enter and Delete as keys.
+                if (e.getAction() == KeyEvent.ACTION_DOWN && (e.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                        || e.getKeyCode() == KeyEvent.KEYCODE_SEARCH)) {
+                    stopTyping(true);
+                    return true;
+                }
+                if (e.getAction() == KeyEvent.ACTION_DOWN && e.getKeyCode() == KeyEvent.KEYCODE_DEL && searchTyped.length() > 0) {
+                    searchTyped.delete(searchTyped.length() - 1, searchTyped.length());
+                    heroDirty = true;
+                    wake();
+                    return true;
+                }
+                return super.sendKeyEvent(e);
+            }
+        };
+    }
+
+    // Listening: the TV's speech recognizer, inside EndGrid iQTV+ (not the Assistant's screen); the words show as
+    // they're heard, and the question runs when the person stops speaking.
+
+    static final int MIC_REQUEST = 42;
+
+    private void startListening() {
+        if (!android.speech.SpeechRecognizer.isRecognitionAvailable(getContext())) {
+            searchFailed(Ui.tr("Voice search isn't available on this TV."));
+            return;
+        }
+        if (activity.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            activity.requestPermissions(new String[] {android.Manifest.permission.RECORD_AUDIO}, MIC_REQUEST);
+            return;   // micAllowed() continues
+        }
+        if (recognizer == null) {
+            recognizer = android.speech.SpeechRecognizer.createSpeechRecognizer(getContext());
+            recognizer.setRecognitionListener(new android.speech.RecognitionListener() {
+                @Override public void onReadyForSpeech(android.os.Bundle b) {}
+                @Override public void onBeginningOfSpeech() {}
+                @Override public void onRmsChanged(float db) {}
+                @Override public void onBufferReceived(byte[] b) {}
+                @Override public void onEndOfSpeech() {}
+                @Override public void onEvent(int type, android.os.Bundle b) {}
+                @Override public void onPartialResults(android.os.Bundle b) {
+                    String heard = first(b);
+                    if (!heard.isEmpty()) {
+                        searchText = heard;
+                        heroDirty = true;
+                        wake();
+                    }
+                }
+                @Override public void onResults(android.os.Bundle b) {
+                    String heard = first(b);
+                    if (heard.isEmpty()) heard = searchText;
+                    if (heard.isEmpty()) {
+                        searchFailed(Ui.tr("Didn't catch that. Try again."));
+                        return;
+                    }
+                    runSearch(heard);
+                }
+                @Override public void onError(int error) {
+                    if (searchState != SearchPanel.LISTENING) return;
+                    searchFailed(error == android.speech.SpeechRecognizer.ERROR_NO_MATCH || error == android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                            ? Ui.tr("Didn't catch that. Try again.")
+                            : error == android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ? Ui.tr("The microphone isn't allowed.")
+                            : Ui.tr("Voice search isn't available right now."));
+                }
+            });
+        }
+        android.content.Intent i = new android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        i.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        i.putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+        i.putExtra(android.speech.RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+        i.putExtra(android.speech.RecognizerIntent.EXTRA_CALLING_PACKAGE, getContext().getPackageName());
+        searchText = "";
+        searchMessage = "";
+        searchState = SearchPanel.LISTENING;
+        try {
+            recognizer.startListening(i);
+        } catch (RuntimeException e) {
+            searchFailed(Ui.tr("Voice search isn't available right now."));
+        }
+    }
+
+    private static String first(android.os.Bundle b) {
+        java.util.ArrayList<String> heard = b == null ? null : b.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
+        return heard == null || heard.isEmpty() || heard.get(0) == null ? "" : heard.get(0).trim();
+    }
+
+    private void stopListening() {
+        if (recognizer != null) {
+            try {
+                recognizer.destroy();
+            } catch (RuntimeException ignored) {
+            }
+            recognizer = null;
+        }
+        if (searchState == SearchPanel.LISTENING) searchState = SearchPanel.IDLE;
+    }
+
+    /** The answer to the microphone permission (HomeActivity hands it over): listening starts if allowed. */
+    void micAllowed(boolean allowed) {
+        if (!searchOpen) return;
+        if (allowed) startListening(); else searchFailed(Ui.tr("The microphone isn't allowed."));
+    }
+
+    /** The results become the first row (under Your Apps), with the focus on the first. */
+    private void showSearchResults(String query, List<Recs.Pick> results, boolean byGemini) {
+        searchQuery = query;
+        searchByGemini = byGemini;
+        searchResults = new ArrayList<>(results);
+        rows.removeIf(r -> r.id.equals("search"));   // a new search starts at its first result
+        updateRows();
+        zone = Z_CARDS;
+        stackIndex = 1;
+        focusRow(false);
+        retarget(false);
     }
 
     private void startVoiceSearch() {
@@ -4620,13 +4915,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 showToast(Ui.trf("Search didn't work: {error}", "error", error));
                 return;
             }
-            searchResults = new ArrayList<>(results);
-            rows.removeIf(r -> r.id.equals("search"));   // a new search starts at its first result
-            updateRows();
-            zone = Z_CARDS;
-            stackIndex = 1;
-            focusRow(false);
-            retarget(false);
+            showSearchResults(searchQuery, results, false);
         });
     }
 

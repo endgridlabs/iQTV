@@ -520,7 +520,7 @@ final class Recs {
     }
 
     /** "Tamil" for content_language=ta (the first language, in the TV's language); "" without one. */
-    private static String languageName() {
+    static String languageName() {
         if (original().isEmpty()) return "";
         String code = original().split("\\|")[0];
         String name = new Locale(code).getDisplayLanguage(Ui.locale());
@@ -1078,6 +1078,69 @@ final class Recs {
             final String why = error;
             main.post(() -> found.onFound(all, why));
         });
+    }
+
+    interface Asked { void onAsked(List<Pick> results, String answer, String error); }
+
+    /**
+     * A question in plain words for Gemini ("a feel-good Tamil family movie"): its titles, each found on TMDB by its
+     * name and year, with the details and availability of the normal search; what streams on the TV's apps first.
+     */
+    void askGemini(String question, Asked asked) {
+        lookup.execute(() -> {
+            List<Pick> on = new ArrayList<>(), off = new ArrayList<>();
+            String error = "", answer = "";
+            try {
+                Gemini.Answer a = Gemini.ask(question, region(), Prefs.contentLanguages());
+                answer = a.text;
+                java.util.Set<String> seen = new java.util.HashSet<>();
+                for (String[] t : a.titles) {
+                    Pick p = findTitle(t[0], t[1], t[2]);
+                    if (p == null || !seen.add(key(p))) continue;
+                    try {
+                        fetchDetails(p);
+                    } catch (Exception e) {
+                        continue;
+                    }
+                    p.meta = p.meta.isEmpty() ? p.year : p.year.isEmpty() ? p.meta : p.year + " · " + p.meta;
+                    (p.pkg != null ? on : off).add(p);
+                }
+                if (on.isEmpty() && off.isEmpty()) error = Ui.tr("Gemini's titles weren't found on TMDB");
+            } catch (Exception e) {
+                error = e.getMessage() == null ? e.toString() : e.getMessage();
+            }
+            on.addAll(off);
+            final String said = answer, why = error;
+            main.post(() -> asked.onAsked(on, said, why));
+        });
+    }
+
+    /** A title by its name, year and kind on TMDB (the year allows a year either side), or null. */
+    private Pick findTitle(String title, String year, String kind) throws Exception {
+        for (String k : new String[] {kind, kind.equals("tv") ? "movie" : "tv"}) {
+            JSONArray results = get("/search/" + k + "?include_adult=false&language=" + lang()
+                    + "&query=" + URLEncoder.encode(title, "UTF-8")).getJSONArray("results");
+            JSONObject best = null;
+            for (int i = 0; i < results.length() && best == null; i++) {
+                JSONObject o = results.getJSONObject(i);
+                String backdrop = o.optString("backdrop_path", "");
+                if (backdrop.isEmpty() || "null".equals(backdrop)) continue;
+                String date = o.optString(k.equals("movie") ? "release_date" : "first_air_date", "");
+                if (!year.isEmpty() && date.length() >= 4) {
+                    int y = Integer.parseInt(date.substring(0, 4)), want = Integer.parseInt(year);
+                    if (Math.abs(y - want) > 1) continue;
+                }
+                best = o;
+            }
+            if (best == null) continue;
+            Pick p = new Pick();
+            p.id = best.optInt("id");
+            p.kind = k;
+            p.title = best.optString(k.equals("movie") ? "title" : "name");
+            p.backdrop = best.optString("backdrop_path");
+            return p;
+        }
+        return null;
     }
 
     /** "Law & Order: Special Victims Unit" → "law & order" (what comes before ":" or " - "). */

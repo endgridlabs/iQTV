@@ -140,6 +140,22 @@ final class SettingsPages {
                 .show();
     }
 
+    /** The Gemini key (Google AI Studio), typed on the TV: Search then asks Gemini. Never shown back in full. */
+    private static void askGeminiKey(Host host) {
+        EditText field = new EditText(host.activity());
+        field.setSingleLine(true);
+        field.setHint(Prefs.geminiKey().isEmpty() ? Ui.tr("Free key from aistudio.google.com") : Ui.tr("A key is set: type a new one, or clear it"));
+        new AlertDialog.Builder(host.activity(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle(Ui.tr("Gemini key"))
+                .setView(field)
+                .setPositiveButton(Ui.tr("Save"), (d, which) -> {
+                    Prefs.setGeminiKey(field.getText().toString());
+                    host.refresh();
+                })
+                .setNegativeButton(Ui.tr("Cancel"), null)
+                .show();
+    }
+
     /** The Watchmode key, typed on the TV: titles then open their own page in their app, not the app's home. */
     private static void askWatchmodeKey(Host host) {
         EditText field = new EditText(host.activity());
@@ -438,6 +454,9 @@ final class SettingsPages {
                                 ? Ui.tr("Not set") : Ui.tr("Built in"))
                         .hint(Ui.tr("Free from themoviedb.org/settings/api: it brings the picks, rows and search. OK to paste it."))
                         .ok(() -> askTmdbKey(host)));
+                out.add(new Opt(Ui.tr("Gemini key")).value(Prefs.geminiKey().isEmpty() ? Ui.tr("Not set") : Ui.tr("Set"))
+                        .hint(Ui.tr("Free from aistudio.google.com: Search understands plain words, like “a feel-good Tamil movie”."))
+                        .ok(() -> askGeminiKey(host)));
                 out.add(new Opt(Ui.tr("Watchmode key")).value(Prefs.watchmodeKeyTyped() ? Ui.tr("Set")
                                 : Prefs.watchmodeKey().isEmpty() ? Ui.tr("Not set") : Ui.tr("Built in"))
                         .hint(Ui.tr("Free from watchmode.com: Open goes to the title itself, not the app's home. OK to paste it."))

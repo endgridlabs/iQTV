@@ -191,6 +191,10 @@ final class Prefs {
         return typed.isEmpty() ? Config.WATCHMODE_KEY.trim() : typed;
     }
 
+    /** The Gemini API key (Google AI Studio, free) typed on the TV: Search asks Gemini with it. Never in a build. */
+    static String geminiKey() { return app == null ? "" : sp().getString("geminiKey", "").trim(); }
+    static void setGeminiKey(String key) { put("geminiKey", key.replaceAll("\\s", "")); }
+
     static boolean watchmodeKeyTyped() { return app != null && !sp().getString("watchmodeKey", "").trim().isEmpty(); }
     static void setWatchmodeKey(String key) { put("watchmodeKey", key.replaceAll("\\s", "")); }
 

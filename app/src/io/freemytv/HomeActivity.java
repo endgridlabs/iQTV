@@ -71,6 +71,13 @@ public class HomeActivity extends Activity {
         if (heard != null && !heard.isEmpty()) home.voiceResult(heard.get(0));
     }
 
+    /** The microphone for the Search screen's Speak: allowed or not, the home screen carries on. */
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode != HomeView.MIC_REQUEST || home == null) return;
+        home.micAllowed(results.length > 0 && results[0] == android.content.pm.PackageManager.PERMISSION_GRANTED);
+    }
+
     @Override protected void onDestroy() {
         if (home != null) home.destroy();
         super.onDestroy();
