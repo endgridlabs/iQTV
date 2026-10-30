@@ -31,11 +31,11 @@ Then on a TV, with `adb install -r iQTV.apk`, check by hand:
 1. Home: arrows between the navigation bar, the title's actions, Continue Watching, Your Apps and every row; Back from a row returns to
    the top; Home resets.
 2. OK on a title opens its app; Home comes back with the focus where it was.
-3. Settings › Personalize: change a value, force-stop the app (`adb shell am force-stop io.freemytv`), and check it
+3. Settings › Personalize: change a value, force-stop the app (`adb shell am force-stop com.endgrid.iqtv`), and check it
    stayed.
 4. The screensaver (`adb shell am start -n com.android.systemui/.Somnambulator`) moves, crossfades, and any key
    closes it.
-5. Frame times while moving the focus: `adb shell dumpsys gfxinfo <pid of io.freemytv:home>`.
+5. Frame times while moving the focus: `adb shell dumpsys gfxinfo <pid of com.endgrid.iqtv:home>`.
 
 Say in the pull request which TV (brand, model, Android version) you tested on.
 

@@ -57,7 +57,7 @@ It takes a few seconds; the screen blinks while it measures. Press Home: you're 
 
 On TCL TVs, also let it run in the background (TCL blocks it by default), from a computer:
 ```bash
-adb shell "appops set io.freemytv AUTO_START allow || appops set io.freemytv APP_AUTO_START allow"
+adb shell "appops set com.endgrid.iqtv AUTO_START allow || appops set com.endgrid.iqtv APP_AUTO_START allow"
 ```
 
 ## 4. Make it yours

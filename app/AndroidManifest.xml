@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="io.freemytv"
+    package="com.endgrid.iqtv"
     android:versionCode="5"
     android:versionName="1.1.0">
 
@@ -88,7 +88,7 @@
             android:exported="true"
             android:label="EndGrid iQTV+"
             android:launchMode="singleTask"
-            android:taskAffinity="io.freemytv.settings"
+            android:taskAffinity="com.endgrid.iqtv.settings"
             android:excludeFromRecents="true"
             android:screenOrientation="landscape"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
@@ -136,7 +136,7 @@
             android:exported="false"
             android:label="EndGrid iQTV+"
             android:launchMode="singleTask"
-            android:taskAffinity="io.freemytv.settings"
+            android:taskAffinity="com.endgrid.iqtv.settings"
             android:excludeFromRecents="true"
             android:screenOrientation="landscape"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
@@ -207,7 +207,7 @@
              only adb's shell may write (PhotoInbox checks). -->
         <provider
             android:name=".PhotoInbox"
-            android:authorities="io.freemytv.photos"
+            android:authorities="com.endgrid.iqtv.photos"
             android:exported="true" />
 
         <!-- The sleep timer's minutes left over any app, while the timer runs. A process of its own: a foreground

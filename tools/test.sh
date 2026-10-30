@@ -7,10 +7,10 @@ JAVAC="${JAVA_HOME:+$JAVA_HOME/bin/}javac"
 JAVA="${JAVA_HOME:+$JAVA_HOME/bin/}java"
 out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT
-"$JAVAC" -nowarn -encoding UTF-8 -d "$out" app/src/io/freemytv/Lists.java tests/*.java
+"$JAVAC" -nowarn -encoding UTF-8 -d "$out" app/src/com/endgrid/iqtv/Lists.java tests/*.java
 status=0
 for t in tests/*.java; do
-  name="io.freemytv.$(basename "$t" .java)"
+  name="com.endgrid.iqtv.$(basename "$t" .java)"
   echo "== $name"
   "$JAVA" -cp "$out" "$name" || status=1
 done

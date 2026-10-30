@@ -75,7 +75,7 @@ About ten minutes. You need a Google TV or Android TV and a computer on the same
    On Android 14, Google Play Protect may hold the install with *Risky app blocked*: choose *More details* →
    *Install anyway*. Updates don't ask again. On TCL TVs, also let it run in the background:
    ```bash
-   adb shell "appops set io.freemytv AUTO_START allow || appops set io.freemytv APP_AUTO_START allow"
+   adb shell "appops set com.endgrid.iqtv AUTO_START allow || appops set com.endgrid.iqtv APP_AUTO_START allow"
    ```
 5. **On the TV**, open *EndGrid iQTV+* → *Home Screen* → *EndGrid iQTV+*. The TV asks *Allow USB debugging?* for the
    app: tick *Always allow* and accept.
@@ -145,7 +145,7 @@ To remove it for good, switch to *Original* first, then uninstall *EndGrid iQTV+
 - It becomes the home screen and the screensaver.
 - It turns off, without uninstalling, the stock home screen and screensaver, Google TV's recovery home and Play Games,
   and on some brands their promo, demo and tracking apps (`DEBLOAT` in
-  [`HomeMode.java`](app/src/io/freemytv/HomeMode.java)). YouTube Music stays on.
+  [`HomeMode.java`](app/src/com/endgrid/iqtv/HomeMode.java)). YouTube Music stays on.
 - Picture, sound, inputs, remote pairing, Google services and the Play Store are on a protected list, checked before
   every change. Apps that saved a Wi-Fi network are never turned off.
 - On Google TV, the Assistant's film and show results come from Google TV's home app, which is off: asking it to play a
@@ -172,7 +172,8 @@ To remove it for good, switch to *Original* first, then uninstall *EndGrid iQTV+
 | `HomeMode` | Switching home screens through the TV's own ADB. |
 | `Lists` | Plain logic (lists, title matching), tested on a computer. |
 
-The Java package is `io.freemytv`: it's the installed app's ID, kept so updates install over the app on your TV.
+The Java package is `com.endgrid.iqtv`: it is the installed app's ID (EndGrid Labs). Versions before it used `io.freemytv`: switch
+that one to Original, uninstall it, then install this one (see the changelog).
 
 ```bash
 ./build.sh                  # the APK

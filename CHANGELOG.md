@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **A new app ID, `com.endgrid.iqtv`:** it replaces `io.freemytv`, so this version installs as a new app. Before
+  installing it, open the old one's Settings, switch to Original, then uninstall it; turn on iQTV+ mode again in the
+  new one. Settings start fresh.
+- **The remote's Assistant key opens Search with Gemini,** already listening (iQTV+ becomes the TV's assistant;
+  Original gives the key back to Google Assistant, whose results need the stock home screen).
+
 ## 1.1.0 — smoother, and easier to browse
 
 - **No more freezes:** the home screen no longer stops for 8–9 seconds every minute (remote presses were lost); it
