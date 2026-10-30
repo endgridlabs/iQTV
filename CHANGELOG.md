@@ -1,13 +1,28 @@
 # Changelog
 
-## Unreleased
+## 2.0.1 — Gemini search, Watch Now and a new look
 
 - **A new app ID, `com.endgrid.iqtv`:** it replaces `io.freemytv`, so this version installs as a new app. Before
   installing it, open the old one's Settings, switch to Original, then uninstall it; turn on iQTV+ mode again in the
   new one. Settings start fresh.
-- **Search with Gemini** from the Search tab and a remote's search key. The mic button stays Google Assistant's: a
-  voice remote's sound reaches only the TV's assistant. Assistant result cards still can't open a show while the
-  stock home screen is off; voice commands like "open YouTube" still work.
+- **Search with Gemini:** the Search tab (and a remote's search key) opens a new Search screen: ask in plain words
+  ("a feel-good Tamil family movie") or pick a suggestion, and Gemini's picks come as a row, each checked on TMDB for
+  where it streams. Add a free key from aistudio.google.com in Settings › Personalize › Recommendations › Gemini key;
+  without one, Search finds titles by name. The mic button stays Google Assistant's: a voice remote's sound reaches
+  only the TV's assistant.
+- **Watch Now opens the title itself:** with a free Watchmode key (Settings › Personalize › Recommendations ›
+  Watchmode key), Watch Now opens the movie or show's own page in Prime Video, Netflix or JioHotstar instead of the
+  app's home. Featured titles are looked up ahead; any other title (a search result) when you press OK. Each link is
+  remembered, so the free plan's monthly lookups go far.
+- **Weather in the top bar:** the temperature and city next to the clock; OK opens the full forecast (hourly, five
+  days, air quality, wind, UV and more).
+- **Settings behind your initial:** the avatar next to the clock opens Settings, now with icons and clearer pages
+  (and a Status page).
+- **Bigger apps in a glass dock:** Your Apps sit on Liquid or Frosted glass (Settings › Personalize › Dock glass, or
+  off).
+- **OnePlus TVs:** Oxygen Play and O Relax are turned off in iQTV+ mode too (Original brings them back).
+- Google Assistant's result cards still can't open a show while the stock home screen is off; voice commands like
+  "open YouTube" work.
 
 ## 1.1.0 — smoother, and easier to browse
 
