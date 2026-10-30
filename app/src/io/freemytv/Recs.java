@@ -1553,7 +1553,7 @@ final class Recs {
 
     /** A key is set and Watchmode hasn't refused it (a refused key isn't tried again until it changes). */
     private boolean linksOn() {
-        String key = Config.WATCHMODE_KEY.trim();
+        String key = Prefs.watchmodeKey();
         return !key.isEmpty() && cache.getInt("wm:refused", 0) != key.hashCode();
     }
 
@@ -1586,7 +1586,7 @@ final class Recs {
             p.link = link.isEmpty() ? null : link;
         } catch (Exception e) {
             if ("Watchmode returned HTTP 401".equals(e.getMessage())) {
-                cache.edit().putInt("wm:refused", Config.WATCHMODE_KEY.trim().hashCode()).apply();
+                cache.edit().putInt("wm:refused", Prefs.watchmodeKey().hashCode()).apply();
             }
             linkRetryAt = System.currentTimeMillis() + 10 * 60_000L;   // quota or network: not again right away
             AppLog.w("watchmode: " + e.getMessage());
@@ -1595,7 +1595,7 @@ final class Recs {
 
     private static String watchmode(String path) throws IOException {
         HttpURLConnection c = (HttpURLConnection) new URL("https://api.watchmode.com/v1" + path + (path.contains("?") ? "&" : "?")
-                + "apiKey=" + URLEncoder.encode(Config.WATCHMODE_KEY.trim(), "UTF-8")).openConnection();
+                + "apiKey=" + URLEncoder.encode(Prefs.watchmodeKey(), "UTF-8")).openConnection();
         c.setConnectTimeout(8000);
         c.setReadTimeout(10000);
         try {

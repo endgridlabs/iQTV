@@ -98,8 +98,9 @@ final class HomeMode {
         // once JM_HOME is ours
         HTC_HOME,                                                                     // the stock home (and an ad SDK)
         // OnePlus TV (HeyTap, MediaTek; Android 11): always running, 70-170 MB on a 2 GB TV. Not the remote
-        // (com.oneplus.tv.remote, heytap.tv.remotecontrolinspect), updates, Live TV, the account or the OnePlus
-        // launcher (it receives the remote's global buttons)
+        // (com.oneplus.tv.remote, heytap.tv.remotecontrolinspect), updates, Live TV or the account
+        "com.oneplus.tv.launcher",                                                    // Oxygen Play, OnePlus's content launcher
+        "com.coloros.relax.tv",                                                       // O Relax (ambient sounds and scenes)
         "com.heytap.olink",                                                           // OnePlus Connect (the phone app's link)
         "com.heytap.mcs",                                                             // HeyTap push messages
         "oneplus.smarthome",                                                          // smart-home hub

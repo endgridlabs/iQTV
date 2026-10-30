@@ -116,14 +116,17 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             S_META_BASE = 412, S_OVERVIEW_BASE = 452, S_OVERVIEW_LINE = 34;
     private static final float S_ACTIONS_TOP = 512, S_ACTION_H = 60, S_ACTION_GAP = 20;
     /** The top tabs: Home, Movies, TV Shows, Continue Watching, Discover (filters of the rows), and Apps (All Apps). */
-    private static final int TAB_HOME = 0, TAB_MOVIES = 1, TAB_SHOWS = 2, TAB_APPS = 3, TAB_SEARCH = 4, TAB_SETTINGS = 5;
-    private final Spring[] tabFocus = new Spring[6];
-    private final RectF[] tabRects = new RectF[6];
+    private static final int TAB_HOME = 0, TAB_MOVIES = 1, TAB_SHOWS = 2, TAB_APPS = 3, TAB_SEARCH = 4;
+    private final Spring[] tabFocus = new Spring[5];
+    private final RectF[] tabRects = new RectF[5];
     private int shelfTab, tabIndex;
     private boolean infoOpen;       // More Info: the title's details over the screen (Back closes it)
     // The weather pill at the end of the top bar (→ from Settings), and the Weather panel it opens (shares More Info's
     // fade, `info`; `overlayWeather` says which of the two the fade draws, until it has faded out).
     private boolean weatherFocus, weatherOpen, overlayWeather;
+    // Your initial at the right of the top bar (→ after the weather): OK opens Settings.
+    private boolean profileFocus;
+    private final Spring profilePill = new Spring(0.26f, 0.85f, 0);
     private final Spring weatherPill = new Spring(0.26f, 0.85f, 0);
     private WeatherPanel weatherPanel;
     private final Spring info = new Spring(0.3f, 0.9f, 0);
@@ -175,7 +178,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private long shelfFadeAt, shelfTextAt;
     private StaticLayout shelfTitle;
     private String shelfTitleKey = "";
-    private Paint sGreet, sMeta, sRowLabel, sThumbTitle, sAction, sTab, sTabOn, sBrand, sBrandAccent, sClock, sAvatar, sHeroLabel,
+    private Paint sProfile, sGreet, sMeta, sRowLabel, sThumbTitle, sAction, sTab, sTabOn, sBrand, sBrandAccent, sClock, sAvatar, sHeroLabel,
             sCardTitle, sCardSub;
     private LinearGradient brandShader, avatarShader;
     private float brandShaderX, avatarX;
@@ -598,6 +601,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             infoOpen = false;
             weatherOpen = false;
             weatherFocus = false;
+            profileFocus = false;
             if (shelfTab != TAB_HOME) {
                 shelfTab = TAB_HOME;
                 rows.clear();
@@ -758,6 +762,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         sBrandAccent = Ui.text(Ui.displaySemibold, 40 * k, Tokens.TEXT);
         sClock = Ui.numbers(Ui.medium, 34 * k, Tokens.TEXT);
         sAvatar = Ui.text(Ui.semibold, 26 * k, Tokens.TEXT);
+        sProfile = Ui.text(Ui.semibold, 22 * k, Tokens.TEXT);
         sHeroLabel = Ui.text(Ui.semibold, 28 * k, Tokens.TEXT);
         sCardTitle = Ui.text(Ui.semibold, 25 * k, Tokens.TEXT);
         sCardSub = Ui.text(Ui.medium, 21 * k, Tokens.TEXT);
@@ -831,7 +836,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (TOP_SHELF) {
             boolean infoMoving = info.step(dt);
             if (infoMoving) motionDirty = true;   // the dock and the buttons fade with it (updateMotion)
-            cardsMoving |= step(actionFocus, dt) | step(tabFocus, dt) | weatherPill.step(dt) | infoMoving | stepStack(dt) | tickShelfText(up);
+            cardsMoving |= step(actionFocus, dt) | step(tabFocus, dt) | weatherPill.step(dt) | profilePill.step(dt) | infoMoving | stepStack(dt) | tickShelfText(up);
         }
         if (TOP_SHELF && tickShelfFade(up)) sky.invalidate();
         if (topMoving) status.invalidate();
@@ -2027,7 +2032,11 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         heroChanged |= aim(cardFocus, !sheetOpen && zone == Z_CARDS ? cardIndex : -1, snap) | topChanged;
         if (TOP_SHELF) {
             heroChanged |= aim(actionFocus, !sheetOpen && !infoOpen && zone == Z_ACTIONS ? actionIndex : -1, snap);
-            heroChanged |= aim(tabFocus, !sheetOpen && zone == Z_TABS && !weatherFocus ? tabIndex : -1, snap);
+            heroChanged |= aim(tabFocus, !sheetOpen && zone == Z_TABS && !weatherFocus && !profileFocus ? tabIndex : -1, snap);
+            float profileTarget = !sheetOpen && !weatherOpen && zone == Z_TABS && profileFocus ? 1 : 0;
+            heroChanged |= profilePill.target != profileTarget;
+            profilePill.target = profileTarget;
+            if (snap) profilePill.snap(profileTarget);
             float pillTarget = !sheetOpen && !weatherOpen && zone == Z_TABS && weatherFocus ? 1 : 0;
             heroChanged |= weatherPill.target != pillTarget;
             weatherPill.target = pillTarget;
@@ -3423,12 +3432,12 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private static final long HERO_ROTATE_MS = 9000;
     private static final int HERO_FEATURED = 8;
 
-    /** The navigation's items: three filters of the rows, then Apps (All Apps), Search and Settings. */
+    /** The navigation's items: three filters of the rows, then Apps (All Apps) and Search (Settings: your initial). */
     private static String[] shelfTabs() {
-        return new String[] {Ui.tr("tab|Home"), Ui.tr("Movies"), Ui.tr("TV Shows"), Ui.tr("Apps"), Ui.tr("Search"), Ui.tr("light|Settings")};
+        return new String[] {Ui.tr("tab|Home"), Ui.tr("Movies"), Ui.tr("TV Shows"), Ui.tr("Apps"), Ui.tr("Search")};
     }
 
-    private static final String[] TAB_SYMBOLS = {"home", "play", "tv", "apps", "search", "settings"};
+    private static final String[] TAB_SYMBOLS = {"home", "play", "tv", "apps", "search"};
 
     private void layoutTopShelf() {
         if (sTab != null) {
@@ -4033,24 +4042,46 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         sClock.setTextAlign(Paint.Align.RIGHT);
         c.drawText(clockText, right, cy + Ui.halfCap(sClock), sClock);
         String name = Prefs.viewerName();
-        // The weather pill, left of your initial (or of the time): OK on it opens the Weather panel.
-        float pillRight = right - sClock.measureText(clockText) - 28 * k - (name.isEmpty() ? 0 : 56 * k + 22 * k);
+        // The weather pill, left of you: OK on it opens the Weather panel.
+        float pillRight = right - sClock.measureText(clockText) - 28 * k - 56 * k - 22 * k;
         weatherPanel().drawPill(c, data.weather, pillRight, cy, k, Ui.clamp(weatherPill.value), 1);
-        if (!name.isEmpty()) {
-            float d = 56 * k, cx = right - sClock.measureText(clockText) - 28 * k - d / 2;
-            if (avatarShader == null || avatarX != cx) {
-                avatarX = cx;
-                avatarShader = new LinearGradient(cx - d / 2, cy - d / 2, cx + d / 2, cy + d / 2, Brand.CYAN, Brand.VIOLET, Shader.TileMode.CLAMP);
-            }
-            fill.setColor(0xFFFFFFFF);   // opaque: the tabs above leave `fill` translucent while the bar has the focus
-            fill.setShader(avatarShader);
-            c.drawCircle(cx, cy, d / 2, fill);
+        // You: your initial (Settings > Personalize > Your name), or the settings symbol without a name. Focused, it
+        // grows in a white ring and says what OK does; OK opens EndGrid iQTV+'s settings.
+        float f = Ui.clamp(profilePill.value), d = 56 * k * (1 + 0.14f * f);
+        float cx = right - sClock.measureText(clockText) - 28 * k - 28 * k;
+        if (f > 0.02f) {
+            tmp.set(cx - d / 2, cy - d / 2 + 8 * k * f, cx + d / 2, cy + d / 2 + 8 * k * f);
+            shadow.setColor(Ui.alpha(0xFF000000, 0.45f * f));
+            shadows.draw(c, tmp, d / 2, SHADOW_BLUR * k, shadow);
             fill.setShader(null);
+            fill.setColor(Ui.alpha(0xFFFFFFFF, f));
+            c.drawCircle(cx, cy, d / 2 + 6 * k, fill);
+        }
+        if (avatarShader == null || avatarX != cx || avatarD != d) {
+            avatarX = cx;
+            avatarD = d;
+            avatarShader = new LinearGradient(cx - d / 2, cy - d / 2, cx + d / 2, cy + d / 2, Brand.CYAN, Brand.VIOLET, Shader.TileMode.CLAMP);
+        }
+        fill.setColor(0xFFFFFFFF);   // opaque: the tabs above leave `fill` translucent while the bar has the focus
+        fill.setShader(avatarShader);
+        c.drawCircle(cx, cy, d / 2, fill);
+        fill.setShader(null);
+        if (!name.isEmpty()) {
             String initial = name.substring(0, 1).toUpperCase(Ui.locale());
             sAvatar.setTextAlign(Paint.Align.CENTER);
             c.drawText(initial, cx, cy + Ui.halfCap(sAvatar), sAvatar);
+        } else {
+            Symbols.draw(getContext(), c, "settings", cx, cy, 28 * k, 0xFFFFFFFF);
+        }
+        if (f > 0.02f) {
+            String caption = name.isEmpty() ? Ui.tr("light|Settings") : Ui.trf("{name} · Settings", "name", name);
+            sProfile.setAlpha(Math.round(255 * f));
+            sProfile.setTextAlign(Paint.Align.RIGHT);
+            c.drawText(caption, right, cy + 64 * k, sProfile);
         }
     }
+
+    private float avatarD;
 
     /**
      * The hero: a label, the title's logo art (TMDB's, when it has one) or its name, year • language • genre •
@@ -4355,15 +4386,21 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 break;
             case Z_TABS:
                 if (dx != 0) {
-                    // → past Settings: the weather pill (when there's weather); ← from it: back to Settings.
-                    if (weatherFocus) {
+                    // Past the last tab: the weather pill (when there's weather), then you (your initial: Settings).
+                    boolean weather = WeatherPanel.has(data.weather);
+                    if (profileFocus) {
                         if (dx > 0) return true;
+                        profileFocus = false;
+                        weatherFocus = weather;
+                        break;
+                    }
+                    if (weatherFocus) {
                         weatherFocus = false;
+                        profileFocus = dx > 0;
                         break;
                     }
                     if (dx > 0 && tabIndex == tabRects.length - 1) {
-                        if (!WeatherPanel.has(data.weather)) return true;
-                        weatherFocus = true;
+                        if (weather) weatherFocus = true; else profileFocus = true;
                         break;
                     }
                     int next = Math.max(0, Math.min(tabRects.length - 1, tabIndex + dx));
@@ -4372,6 +4409,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                     if (tabIndex <= TAB_SHOWS) selectShelfTab(tabIndex);   // as on tvOS: focusing a filter shows it
                 } else if (dy > 0) {
                     weatherFocus = false;
+                    profileFocus = false;
                     if (actionCount() > 0) {
                         zone = Z_ACTIONS;
                         actionIndex = 0;
@@ -4392,6 +4430,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                     zone = Z_TABS;
                     tabIndex = shelfTab;
                     weatherFocus = false;
+                    profileFocus = false;
                 } else {
                     belowHero();
                 }
@@ -4498,12 +4537,13 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             openWeather();
             return;
         }
+        if (profileFocus) {   // you: EndGrid iQTV+'s settings
+            activity.startActivity(new android.content.Intent(activity, SettingsActivity.class));
+            return;
+        }
         switch (tabIndex) {
             case TAB_APPS: openSheet(); break;
             case TAB_SEARCH: openSearch(); break;
-            case TAB_SETTINGS:
-                activity.startActivity(new android.content.Intent(activity, SettingsActivity.class));
-                break;
             default: selectShelfTab(tabIndex); break;
         }
     }

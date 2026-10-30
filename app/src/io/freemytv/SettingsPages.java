@@ -140,6 +140,23 @@ final class SettingsPages {
                 .show();
     }
 
+    /** The Watchmode key, typed on the TV: titles then open their own page in their app, not the app's home. */
+    private static void askWatchmodeKey(Host host) {
+        EditText field = new EditText(host.activity());
+        field.setSingleLine(true);
+        field.setHint(Prefs.watchmodeKeyTyped() ? Ui.tr("A key is set: type a new one, or clear it") : Ui.tr("Free key from watchmode.com"));
+        new AlertDialog.Builder(host.activity(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle(Ui.tr("Watchmode key"))
+                .setView(field)
+                .setPositiveButton(Ui.tr("Save"), (d, which) -> {
+                    Prefs.setWatchmodeKey(field.getText().toString());
+                    Recs.get(host.activity()).refreshIfStale();   // the titles' links are looked up now
+                    host.refresh();
+                })
+                .setNegativeButton(Ui.tr("Cancel"), null)
+                .show();
+    }
+
     private static void confirm(Host host, String question, String yes, Runnable then) {
         AlertDialog dialog = new AlertDialog.Builder(host.activity(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
                 .setTitle(question)
@@ -361,7 +378,7 @@ final class SettingsPages {
         List<String> can = new ArrayList<>();
         can.add(Ui.tr("opens"));
         if (p.can(Providers.Capability.METADATA)) can.add(Ui.tr("titles and availability from TMDB"));
-        if (p.can(Providers.Capability.DEEP_LINK) && !Config.WATCHMODE_KEY.trim().isEmpty()) can.add(Ui.tr("title pages (Watchmode)"));
+        if (p.can(Providers.Capability.DEEP_LINK) && !Prefs.watchmodeKey().isEmpty()) can.add(Ui.tr("title pages (Watchmode)"));
         if (p.can(Providers.Capability.NOW_PLAYING)) can.add(Ui.tr("watch history if the app reports it"));
         if (!p.can(Providers.Capability.METADATA)) can.add(Ui.tr("no catalog data on TMDB"));
         return Ui.tr("Here: ") + String.join(" · ", can);
@@ -421,6 +438,10 @@ final class SettingsPages {
                                 ? Ui.tr("Not set") : Ui.tr("Built in"))
                         .hint(Ui.tr("Free from themoviedb.org/settings/api: it brings the picks, rows and search. OK to paste it."))
                         .ok(() -> askTmdbKey(host)));
+                out.add(new Opt(Ui.tr("Watchmode key")).value(Prefs.watchmodeKeyTyped() ? Ui.tr("Set")
+                                : Prefs.watchmodeKey().isEmpty() ? Ui.tr("Not set") : Ui.tr("Built in"))
+                        .hint(Ui.tr("Free from watchmode.com: Open goes to the title itself, not the app's home. OK to paste it."))
+                        .ok(() -> askWatchmodeKey(host)));
                 if (!Prefs.tmdbKey().isEmpty()) {
                     long at = recs.updatedAt();
                     String state = recs.refreshing() ? Ui.tr("Updating…")
@@ -665,7 +686,7 @@ final class SettingsPages {
                 out.add(new Opt(Ui.tr("Titles and availability")).value("TMDB").dim()
                         .hint(Ui.tr("This product uses the TMDB API but is not endorsed or certified by TMDB.")));
                 out.add(new Opt(Ui.tr("Weather")).value("Open-Meteo").dim().hint(Ui.tr("Weather data by Open-Meteo.com (CC BY 4.0).")));
-                out.add(new Opt(Ui.tr("Title links")).value(Config.WATCHMODE_KEY.trim().isEmpty() ? Ui.tr("Off") : "Watchmode").dim()
+                out.add(new Opt(Ui.tr("Title links")).value(Prefs.watchmodeKey().isEmpty() ? Ui.tr("Off") : "Watchmode").dim()
                         .hint(Ui.tr("Optional: a free Watchmode key opens a title's own page in its app.")));
                 out.add(new Opt(Ui.tr("Privacy")).value(Ui.tr("On this TV only")).dim()
                         .hint(Ui.tr("No accounts or analytics. Settings, watch history and photos never leave the TV.")));

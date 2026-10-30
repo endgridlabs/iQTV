@@ -185,6 +185,15 @@ final class Prefs {
     static boolean tmdbKeyTyped() { return app != null && !sp().getString("tmdbKey", "").trim().isEmpty(); }
     static void setTmdbKey(String key) { put("tmdbKey", key.replaceAll("\\s", "")); }
 
+    /** The Watchmode key (a title opens its own page in its app): typed on the TV, else config.properties'. */
+    static String watchmodeKey() {
+        String typed = app == null ? "" : sp().getString("watchmodeKey", "").trim();
+        return typed.isEmpty() ? Config.WATCHMODE_KEY.trim() : typed;
+    }
+
+    static boolean watchmodeKeyTyped() { return app != null && !sp().getString("watchmodeKey", "").trim().isEmpty(); }
+    static void setWatchmodeKey(String key) { put("watchmodeKey", key.replaceAll("\\s", "")); }
+
     /** Preferred genres (TMDB genre ids): they weigh in the order of every row, and get rows of their own. */
     static List<String> genres() { return Lists.split(sp().getString("genres", "")); }
     static void setGenres(List<String> ids) { put("genres", Lists.join(ids)); }
