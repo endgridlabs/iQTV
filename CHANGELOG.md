@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.0.2 — what's new on your apps, on a clean Home
 
 - **Home shows what's new:** the featured titles are the newest movies and shows on each of your apps (the last four
   months: films reach the apps a month or two after cinemas), app after app (Netflix, JioHotstar, Prime Video and
