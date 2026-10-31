@@ -352,9 +352,10 @@ final class Recs {
         return out;
     }
 
+    /** Rows are off until turned on in Settings > Home Rows: Home starts clean, with the featured titles and Your Apps. */
     static boolean rowOn(String id) {
         List<String> saved = Prefs.rows();
-        return saved == null || !saved.contains("-" + id);
+        return saved != null && saved.contains(id);
     }
 
     /** A row's name: "Popular Tamil Movies" with Tamil first among your content languages. */
@@ -683,11 +684,17 @@ final class Recs {
         JSONArray providers = get("/watch/providers/movie?language=" + lang() + "&watch_region=" + region()).getJSONArray("results");
         JSONArray tvProviders = get("/watch/providers/tv?language=" + lang() + "&watch_region=" + region()).getJSONArray("results");
         java.util.Set<Integer> found = new java.util.HashSet<>();
+        Map<String, StringBuilder> byService = new LinkedHashMap<>();   // service key -> its TMDB provider ids
         for (JSONArray list : new JSONArray[] {providers, tvProviders}) {
             for (int i = 0; i < list.length(); i++) {
                 JSONObject o = list.getJSONObject(i);
                 String[] s = service(o.optString("provider_name"), o.optInt("provider_id"));
-                if (s != null && installed(s[2]) && found.add(o.getInt("provider_id"))) ids.append(ids.length() == 0 ? "" : "|").append(o.getInt("provider_id"));
+                if (s != null && installed(s[2]) && found.add(o.getInt("provider_id"))) {
+                    ids.append(ids.length() == 0 ? "" : "|").append(o.getInt("provider_id"));
+                    StringBuilder mine = byService.get(s[1]);
+                    if (mine == null) byService.put(s[1], mine = new StringBuilder());
+                    mine.append(mine.length() == 0 ? "" : "|").append(o.getInt("provider_id"));
+                }
             }
         }
         if (ids.length() == 0) throw new IOException(NO_APPS);
@@ -711,11 +718,28 @@ final class Recs {
             if (p != null) trending.add(remember(all, p));
         }
         keys.put(TRENDING, trending);
-        List<String> fresh = collect(all, "movie", "/discover/movie?sort_by=popularity.desc&vote_count.gte=5&primary_release_date.lte="
-                + day(0) + "&primary_release_date.gte=" + day(-75) + on, 1);
-        fresh.addAll(collect(all, "tv", "/discover/tv?sort_by=popularity.desc&first_air_date.lte=" + day(0)
-                + "&first_air_date.gte=" + day(-75) + on, 1));
-        keys.put(NEW, fresh);
+        // New on your apps (Home's featured titles): for each app, the movies of the last four months now streaming there
+        // (in India a film reaches the apps a month or two after cinemas) and the shows that started in that time, in
+        // your languages first. Asked app by app, so each one has its newest, not only the biggest app's.
+        List<List<String>> perApp = new ArrayList<>();
+        String sinceMovie = "&primary_release_date.lte=" + day(0) + "&primary_release_date.gte=" + day(-120);
+        String sinceShow = "&first_air_date.lte=" + day(0) + "&first_air_date.gte=" + day(-120);
+        for (Map.Entry<String, StringBuilder> svc : byService.entrySet()) {
+            String only = "&language=" + lang() + "&watch_region=" + region() + "&with_watch_monetization_types=flatrate"
+                    + "&include_adult=false&with_watch_providers=" + URLEncoder.encode(svc.getValue().toString(), "UTF-8")
+                    + (Config.HIDE_ANIMATION ? "&without_genres=" + ANIMATION : "");
+            List<String> app = new ArrayList<>(Lists.roundRobin(java.util.Arrays.asList(
+                    collect(all, "movie", "/discover/movie?sort_by=popularity.desc" + sinceMovie + only + in, 1),
+                    collect(all, "tv", "/discover/tv?sort_by=popularity.desc" + sinceShow + only + in, 1))));
+            if (!in.isEmpty() && app.size() < 6) {   // few in your languages: the app's other new titles too
+                app.addAll(Lists.roundRobin(java.util.Arrays.asList(
+                        collect(all, "movie", "/discover/movie?sort_by=popularity.desc&vote_count.gte=5" + sinceMovie + only, 1),
+                        collect(all, "tv", "/discover/tv?sort_by=popularity.desc" + sinceShow + only, 1))));
+            }
+            perApp.add(app);
+        }
+        // App after app, one title each, so the row (which keeps its first titles) has every app's newest.
+        keys.put(NEW, Lists.roundRobin(perApp));
         // Your genres (Settings > Recommendations): movies and shows of each, in your languages, on your apps.
         int genreRows = 0;
         for (String g : Prefs.genres()) {
@@ -1605,8 +1629,11 @@ final class Recs {
                 + original().hashCode();
         stamp = stamp * 31L + Prefs.genres().hashCode();
         for (String[] service : SERVICES) stamp = stamp * 31L + (installed(service[2]) ? service[2].hashCode() : 0);
-        return stamp;
+        return stamp * 31L + LISTS_VERSION;
     }
+
+    /** Bump when the lists asked of TMDB change: an update then fetches them again (the saved titles and links stay). */
+    private static final int LISTS_VERSION = 2;   // 2: New Releases app by app, the last four months
 
     // MARK: - Watchmode (the title's own page in its app; the free plan's web addresses are what the apps open)
 

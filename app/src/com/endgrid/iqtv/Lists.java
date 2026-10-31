@@ -38,6 +38,21 @@ final class Lists {
         return out;
     }
 
+    /** The lists taking turns, one item each ([a1 b1 a2 b2 a3…]); a list that runs out drops out, repeats stay. */
+    static List<String> roundRobin(List<List<String>> lists) {
+        List<String> out = new ArrayList<>();
+        for (int i = 0, left = lists.size(); left > 0; i++) {
+            left = 0;
+            for (List<String> list : lists) {
+                if (i < list.size()) {
+                    out.add(list.get(i));
+                    left++;
+                }
+            }
+        }
+        return out;
+    }
+
     // Compiled once: String.replaceAll compiles its pattern on every call, and matching each pick against the watch log
     // normalizes thousands of titles (measured on a OnePlus TV: 8.5 s on the main thread, every minute).
     private static final java.util.regex.Pattern NOT_WORD = java.util.regex.Pattern.compile("[^\\p{L}\\p{N}]+");

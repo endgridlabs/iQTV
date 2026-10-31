@@ -34,6 +34,9 @@ public final class ListsTest {
         eq(rows, Lists.move(rows, "continue", -1), "the first can't move up");
         eq(rows, Lists.move(rows, "featured", 1), "the last can't move down");
         eq(rows, Lists.move(rows, "missing", 1), "an unknown item changes nothing");
+        eq(Arrays.asList("n1", "p1", "z1", "n2", "z2", "n3"), Lists.roundRobin(Arrays.asList(
+                Arrays.asList("n1", "n2", "n3"), Arrays.asList("p1"), Arrays.asList("z1", "z2"))), "round robin takes turns");
+        eq(Arrays.asList(), Lists.roundRobin(Arrays.asList()), "round robin of nothing is empty");
     }
 
     private static void titles() {

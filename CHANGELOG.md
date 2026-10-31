@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Home shows what's new:** the featured titles are the newest movies and shows on each of your apps (the last four
+  months: films reach the apps a month or two after cinemas), app after app (Netflix, JioHotstar, Prime Video and
+  ZEE5 first), in your languages first; no more all-time popular or years-old titles. Twelve of them, refreshed with
+  the lists. Movies and TV Shows start with the new ones too.
+- **A clean Home by default:** every row starts off; turn the ones you want on in Settings › Personalize › Home Rows.
+
 ## 2.0.1 — Gemini search, Watch Now and a new look
 
 - **A new app ID, `com.endgrid.iqtv`:** it replaces `io.freemytv`, so this version installs as a new app. Before

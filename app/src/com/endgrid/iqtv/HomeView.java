@@ -3482,7 +3482,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private static final float H_ROWS_TOP = 762, H_CARD_DY = 46, H_CARD_W = 320, H_CARD_H = 180, H_POSTER_W = 190,
             H_POSTER_H = 285, H_CARD_GAP = 30, H_TEXT_H = 76, H_ROW_GAP = 40, H_ROW_FADE_TOP = 150, H_ROW_FADE = 140;
     private static final long HERO_ROTATE_MS = 9000;
-    private static final int HERO_FEATURED = 8;
+    private static final int HERO_FEATURED = 12;   // three rounds of the four big apps
 
     /** The navigation's items: three filters of the rows, then Apps (All Apps) and Search (Settings: your initial). */
     private static String[] shelfTabs() {
@@ -3780,23 +3780,30 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     /** Streaming services first in the carousel unless Settings > Streaming Apps gives an order of your own. */
-    private static final String[] HERO_FIRST = {"prime", "zee5"};
+    private static final String[] HERO_FIRST = {"netflix", "hotstar", "prime", "zee5"};
 
     /**
-     * The titles the carousel goes through, from every row (on or off), never what you already watched: the services
-     * take turns (your order in Settings > Streaming Apps, else Prime Video and ZEE5 first, then the rest), so one
-     * app's list doesn't fill it; on Home a movie and a show alternate (Movies and TV Shows have only theirs). The most
-     * personal rows come first within each service: yours, your languages', then the worldwide lists.
+     * The titles the carousel goes through, never what you already watched: the services take turns (your order in
+     * Settings > Streaming Apps, else Netflix, JioHotstar, Prime Video and ZEE5 first, then the rest), so one app's list
+     * doesn't fill it; on Home a movie and a show alternate (Movies and TV Shows have only theirs). Home shows what's
+     * new on your apps (New Releases, then the latest movies if that's short), never the all-time popular; Movies and
+     * TV Shows start with the new ones, then every other row, on or off.
      */
     private List<Recs.Pick> makeFeatured() {
         // Candidates, by service, in the rows' order of preference.
         Map<String, List<Recs.Pick>> byService = new java.util.LinkedHashMap<>();
         java.util.Set<String> seen = new java.util.HashSet<>();
         List<Recs.Section> ordered = new ArrayList<>();
-        for (String id : new String[] {"featured", "popular", "latest", "web", "shows", "trending", "new"}) {
+        boolean home = shelfTab == TAB_HOME;
+        for (String id : home ? new String[] {"new"} : new String[] {"new", "latest", "featured", "web", "shows", "trending", "popular"}) {
             for (Recs.Section s : heroSources) if (s.id.equals(id)) ordered.add(s);
         }
-        for (Recs.Section s : heroSources) {
+        int newOnes = 0;
+        for (Recs.Section s : ordered) for (Recs.Pick p : s.items) if (p.backdrop != null) newOnes++;
+        if (home && newOnes < HERO_FEATURED) {
+            for (Recs.Section s : heroSources) if (s.id.equals("latest")) ordered.add(s);
+        }
+        for (Recs.Section s : home ? new ArrayList<Recs.Section>() : heroSources) {
             if (!ordered.contains(s) && !s.id.equals("continue") && !s.id.equals("recent") && !s.id.equals("search")) ordered.add(s);
         }
         for (Recs.Section s : ordered) {
