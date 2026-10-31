@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.1.0 — updates, IMDb ratings and a cleaner app
 
 - **Updates from GitHub:** once a day iQTV+ checks for a newer release; the home screen says so once, and Settings ›
   Personalize › About › Updates installs it (through the TV's own ADB, no prompt; your settings and keys stay).
