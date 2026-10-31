@@ -57,6 +57,8 @@ final class Recs {
         String lang = "";       // the language it was made in (TMDB's original_language)
         String logo = "", poster = "";   // TMDB image paths: the title's logo art (transparent) and its poster ("" without)
         String thumb;   // "file:…": the artwork the app itself showed while it played (WatchLog), when TMDB has none
+        String imdb = "";       // IMDb's id ("tt…", from TMDB), "" without
+        String rating;          // IMDb's rating ("7.8", from OMDb with a key); "" none; null not looked up yet
     }
 
     /** A Top Shelf row: its title and its titles, every one on an app this TV has (TMDB's providers for region()). */
@@ -352,10 +354,13 @@ final class Recs {
         return out;
     }
 
-    /** Rows are off until turned on in Settings > Home Rows: Home starts clean, with the featured titles and Your Apps. */
+    /**
+     * Rows are off until turned on in Settings > Home Rows: Home starts clean, with the featured titles and Your Apps.
+     * Continue Watching starts on (it shows only when you've started something in one of your apps).
+     */
     static boolean rowOn(String id) {
         List<String> saved = Prefs.rows();
-        return saved != null && saved.contains(id);
+        return saved == null ? id.equals(CONTINUE) : saved.contains(id);
     }
 
     /** A row's name: "Popular Tamil Movies" with Tamil first among your content languages. */
@@ -1240,7 +1245,7 @@ final class Recs {
         boolean stale = newKey || p != period || now - listAt > LIST_EVERY || now < listAt || picks.isEmpty()
                 || !listLanguage.equals(Ui.language);
         boolean missing = false;
-        for (Pick pick : wanted()) missing |= !pick.detailed || !hasImage(pick) || needsLink(pick);
+        for (Pick pick : wanted()) missing |= !pick.detailed || !hasImage(pick) || needsLink(pick) || needsRating(pick);
         if (!stale && !missing) return;
         keyStamp = stamp;
         fetching = true;
@@ -1262,6 +1267,7 @@ final class Recs {
                         last = e.getMessage() == null ? e.toString() : e.getMessage();
                     }
                     findLink(pick);
+                    findRating(pick);
                 }
                 save();
                 if (tried > 0 && failures == tried) throw new IOException(last);
@@ -1502,9 +1508,13 @@ final class Recs {
     /** Genre, runtime (or seasons) and the service it's on, among the ones the TV has. */
     private void fetchDetails(Pick p) throws Exception {
         JSONObject o = get("/" + p.kind + "/" + p.id
-                + "?language=" + lang() + "&append_to_response=watch/providers,images&include_image_language=null," + Ui.language.replaceAll("-.*", "") + ",en"
+                + "?language=" + lang() + "&append_to_response=watch/providers,images,external_ids&include_image_language=null," + Ui.language.replaceAll("-.*", "") + ",en"
                 + (p.lang.isEmpty() ? "" : "," + p.lang));
         p.title = title(p, o);
+        // IMDb's id, for the rating (OMDb): a movie has it at the top, a series among its external ids.
+        JSONObject ids = o.optJSONObject("external_ids");
+        String imdb = p.kind.equals("movie") ? o.optString("imdb_id", "") : ids == null ? "" : ids.optString("imdb_id", "");
+        p.imdb = imdb.startsWith("tt") ? imdb : "";
         p.logo = bestLogo(o.optJSONObject("images"), p.lang);
         String poster = o.optString("poster_path", "");
         if (!poster.isEmpty() && !"null".equals(poster)) p.poster = poster;
@@ -1715,6 +1725,66 @@ final class Recs {
             return read(c.getInputStream());
         } finally {
             c.disconnect();
+        }
+    }
+
+    // MARK: - OMDb (each title's IMDb rating, with a free key: 1,000 requests a day, one per title, remembered)
+
+    private volatile long ratingRetryAt;
+
+    private static String ratingKey(Pick p) {
+        return "om:" + p.kind + p.id;
+    }
+
+    /** A key is set and OMDb hasn't refused it. */
+    private boolean ratingsOn() {
+        String key = Prefs.omdbKey();
+        return !key.isEmpty() && cache.getInt("om:refused", 0) != key.hashCode();
+    }
+
+    private boolean needsRating(Pick p) {
+        return ratingsOn() && p.detailed && p.rating == null && cache.getString(ratingKey(p), null) == null
+                && System.currentTimeMillis() >= ratingRetryAt;
+    }
+
+    /** Sets p.rating from what was looked up before, or asks OMDb (by IMDb id, else by title, year and kind). */
+    private void findRating(Pick p) {
+        if (!ratingsOn() || !p.detailed || p.rating != null) return;
+        String saved = cache.getString(ratingKey(p), null);
+        if (saved != null) {
+            p.rating = saved;
+            return;
+        }
+        if (System.currentTimeMillis() < ratingRetryAt) return;
+        try {
+            String query = !p.imdb.isEmpty() ? "i=" + p.imdb
+                    : "t=" + URLEncoder.encode(p.title, "UTF-8") + (p.year.isEmpty() ? "" : "&y=" + p.year)
+                    + "&type=" + (p.kind.equals("tv") ? "series" : "movie");
+            HttpURLConnection c = (HttpURLConnection) new URL("https://www.omdbapi.com/?" + query + "&apikey="
+                    + URLEncoder.encode(Prefs.omdbKey(), "UTF-8")).openConnection();
+            c.setConnectTimeout(8000);
+            c.setReadTimeout(10000);
+            String rating = "";
+            try {
+                int code = c.getResponseCode();
+                if (code == 401) {
+                    cache.edit().putInt("om:refused", Prefs.omdbKey().hashCode()).apply();
+                    return;
+                }
+                if (code != 200) throw new IOException("OMDb returned HTTP " + code);
+                JSONObject o = new JSONObject(read(c.getInputStream()));
+                String r = o.optString("imdbRating", "");
+                if (r.matches("\\d+(\\.\\d)?")) rating = r;
+                // "Request limit reached!": the day's requests are used; not remembered as "no rating".
+                if (o.optString("Error").toLowerCase(Locale.ROOT).contains("limit")) throw new IOException(o.optString("Error"));
+            } finally {
+                c.disconnect();
+            }
+            cache.edit().putString(ratingKey(p), rating).apply();
+            p.rating = rating;
+        } catch (Exception e) {
+            ratingRetryAt = System.currentTimeMillis() + 60 * 60_000L;   // quota or network: in an hour
+            AppLog.w("omdb: " + e.getMessage());
         }
     }
 
@@ -1940,7 +2010,7 @@ final class Recs {
                         .put("meta", p.meta).put("app", p.app == null ? "" : p.app).put("pkg", p.pkg == null ? "" : p.pkg)
                         .put("detailed", p.detailed).put("genres", new JSONArray(p.genres)).put("web", p.web)
                         .put("overview", p.overview).put("year", p.year).put("lang", p.lang)
-                        .put("logo", p.logo).put("poster", p.poster));
+                        .put("logo", p.logo).put("poster", p.poster).put("imdb", p.imdb));
             }
             JSONObject sections = new JSONObject();
             for (Map.Entry<String, List<String>> s : sectionKeys.entrySet()) sections.put(s.getKey(), new JSONArray(s.getValue()));
@@ -1952,6 +2022,10 @@ final class Recs {
             Set<String> keep = new HashSet<>();
             for (Pick p : picks) keep.add(linkKey(p));
             for (String k : cache.getAll().keySet()) if (k.startsWith("wm:") && !k.equals("wm:refused") && !keep.contains(k)) e.remove(k);
+            // IMDb ratings the same way.
+            Set<String> rated = new HashSet<>();
+            for (Pick p : picks) rated.add(ratingKey(p));
+            for (String k : cache.getAll().keySet()) if (k.startsWith("om:") && !k.equals("om:refused") && !rated.contains(k)) e.remove(k);
             e.apply();
         } catch (Exception ignored) {
         }
@@ -1978,6 +2052,7 @@ final class Recs {
             p.web = o.optBoolean("web");
             p.overview = o.optString("overview");
             p.year = o.optString("year");
+            p.imdb = o.optString("imdb");
             p.lang = o.optString("lang");
             p.logo = o.optString("logo");
             p.poster = o.optString("poster");

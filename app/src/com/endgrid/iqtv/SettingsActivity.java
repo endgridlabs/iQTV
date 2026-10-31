@@ -161,10 +161,23 @@ public class SettingsActivity extends Activity {
         private static final float LIST_ROW_H = 68, LIST_ROW_GAP = 6;
         private static final int PICK_VISIBLE = 9;
         private static final float LIST_X = 1000, LIST_R = 1824, LIST_TOP = 186, ROW_GAP = 8, CHOICE_H = 104;
-        // The main menu: nine rows, each a card with a colored symbol (as tvOS-style launchers set them out), then the
+        // The main menu: eight or nine rows (MAIN_SHOWN), each a card with a colored symbol (as tvOS-style launchers set them out), then the
         // picks' status; the comparison and the notices are on the Status page.
         private static final float MAIN_TOP = 176, ROW_H = 62, MAIN_GAP = 10;
-        private static final int MAIN_ROWS = 9;
+        /**
+         * The main rows shown, by their place in mainLabels() (the symbols and colors too): Remote Buttons only on TVs
+         * whose remote has app buttons we can take (RemoteKeys), never as a row that says Unavailable.
+         */
+        private static final int REMOTE_ROW = 5;
+        private static final int[] MAIN_SHOWN = RemoteKeys.supported() ? new int[] {0, 1, 2, 3, 4, 5, 6, 7, 8}
+                : new int[] {0, 1, 2, 3, 4, 6, 7, 8};
+
+        /** The main row at place `i` on screen (-1 past the end), and the place of row `row`. */
+        private static int mainRow(int i) { return i >= 0 && i < MAIN_SHOWN.length ? MAIN_SHOWN[i] : -1; }
+        private static int mainPlace(int row) {
+            for (int i = 0; i < MAIN_SHOWN.length; i++) if (MAIN_SHOWN[i] == row) return i;
+            return 0;
+        }
         /** Each main row's symbol and its tile's color. */
         private static final String[] MAIN_SYMBOLS = {"home", "sparkles", "settings", "apps", "tv", "gamepad", "bedtime", "tv_settings", "sync"};
         private static final int[] MAIN_COLORS = {0xFF0A84FF, 0xFF5E5CE6, 0xFFFF375F, 0xFFFF9F0A, 0xFF30B0C7, 0xFF8E8E93, 0xFFBF5AF2,
@@ -276,6 +289,7 @@ public class SettingsActivity extends Activity {
         private String rowValueText(int row) {
             switch (screen) {
                 case MAIN: {
+                    row = mainRow(row);
                     if (row == 0) {
                         String busyText = busyText();
                         String value = busy() ? (busyText.isEmpty() ? Ui.tr("Starting…") : busyText)
@@ -285,7 +299,7 @@ public class SettingsActivity extends Activity {
                     String[] names = {Ui.tr("Screensaver, preview"), Ui.tr("Personalize"),
                             Ui.tr("Shelf"), Ui.tr("Top Buttons"), Ui.tr("Remote Buttons"), Ui.tr("Sleep Timer"),
                             Ui.tr("TV Settings"), Ui.tr("Status")};
-                    return row - 1 < names.length ? names[row - 1] : "";
+                    return row >= 1 && row - 1 < names.length ? names[row - 1] : "";
                 }
                 case HOME_CHOICE: {
                     String name = row == 0 ? "EndGrid iQTV+, " + Ui.tr("no ads, with the new screensaver")
@@ -428,7 +442,7 @@ public class SettingsActivity extends Activity {
 
         private int rowCount() {
             switch (screen) {
-                case MAIN: return MAIN_ROWS;
+                case MAIN: return MAIN_SHOWN.length;
                 case HOME_CHOICE: return 2;
                 case HOME_SETTINGS: return Math.min(SETTINGS_VISIBLE, settingLabels().length);
                 case PICKER: return Math.min(PICK_VISIBLE, pickLabels.size());
@@ -618,7 +632,8 @@ public class SettingsActivity extends Activity {
             String[] values = {working ? "" : mode, Ui.tr("Preview"), "", "", "", "", "", "", ""};
             header.setAlpha(255);
             c.drawText(Brand.NAME.toUpperCase(Ui.locale()), LIST_X * k + 30 * k, (MAIN_TOP - 26) * k, header);
-            for (int i = 0; i < labels.length; i++) {
+            for (int i = 0; i < MAIN_SHOWN.length; i++) {
+                int r = MAIN_SHOWN[i];   // the row (label, symbol, color, value) at this place
                 float y = (MAIN_TOP + i * (ROW_H + MAIN_GAP)) * k;
                 rowRect.set(LIST_X * k, y, LIST_R * k, y + ROW_H * k);
                 float f = drawRowBackground(c, i);
@@ -629,18 +644,18 @@ public class SettingsActivity extends Activity {
                 // The row's symbol on its colored tile (dimmed when the row is unavailable).
                 float ts = 40 * k, tx = rowRect.left + 22 * k, ty = rowRect.centerY() - ts / 2;
                 tmp.set(tx, ty, tx + ts, ty + ts);
-                tile.setColor(off ? Ui.alpha(MAIN_COLORS[i], 0.4f) : MAIN_COLORS[i]);
+                tile.setColor(off ? Ui.alpha(MAIN_COLORS[r], 0.4f) : MAIN_COLORS[r]);
                 c.drawRoundRect(tmp, 11 * k, 11 * k, tile);
-                Symbols.draw(getContext(), c, MAIN_SYMBOLS[i], tmp.centerX(), tmp.centerY(), 24 * k, off ? 0x99FFFFFF : 0xFFFFFFFF);
-                c.drawText(labels[i], tx + ts + 20 * k, base, rowLabel);
+                Symbols.draw(getContext(), c, MAIN_SYMBOLS[r], tmp.centerX(), tmp.centerY(), 24 * k, off ? 0x99FFFFFF : 0xFFFFFFFF);
+                c.drawText(labels[r], tx + ts + 20 * k, base, rowLabel);
                 float right = rowRect.right - 30 * k;
                 if (off) {
                     rowValue.setColor(blend(0x59FFFFFF, 0x591C1C1E, f));
                     c.drawText(Ui.tr("Unavailable"), right, base, rowValue);
-                } else if (i >= 2) {
+                } else if (r >= 2) {
                     float cw = Symbols.width(getContext(), "chevron_right", 22 * k);
                     Symbols.draw(getContext(), c, "chevron_right", right - cw / 2, rowRect.centerY(), 22 * k, blend(0x66FFFFFF, 0x991C1C1E, f));
-                } else if (i == 0 && working) {
+                } else if (r == 0 && working) {
                     // Switching: the current step in place of the value, with the spinning arc.
                     String text = busyText.isEmpty() ? Ui.tr("Starting…") : busyText;
                     rowValue.setColor(blend(0xB3FFFFFF, 0xB31C1C1E, f));
@@ -651,11 +666,11 @@ public class SettingsActivity extends Activity {
                     Ui.spinner(c, sx, rowRect.centerY(), 12 * k, seconds * 1.3f, spinner);
                 } else {
                     rowValue.setColor(blend(0x8CFFFFFF, 0x8C1C1C1E, f));
-                    c.drawText(values[i], right, base, rowValue);
+                    c.drawText(values[r], right, base, rowValue);
                 }
             }
 
-            float y = (MAIN_TOP + labels.length * (ROW_H + MAIN_GAP) + 20) * k;
+            float y = (MAIN_TOP + MAIN_SHOWN.length * (ROW_H + MAIN_GAP) + 20) * k;
             String error = state.optString("error");
             if (working && busyText.equals(Ui.tr("Accept “Allow USB debugging?” on the TV (tick “Always allow”)."))) {
                 c.drawText(Ui.tr("On the TV: tick “Always allow” and press OK."),
@@ -885,7 +900,7 @@ public class SettingsActivity extends Activity {
                                 refreshPage();
                             } else {
                                 focus = screen == HOME_SETTINGS ? 2 : screen == SHELF_EDIT ? (editingTop ? 4 : 3)
-                                        : screen == REMOTE_KEYS ? 5 : screen == POWER ? 6 : 0;
+                                        : screen == REMOTE_KEYS ? mainPlace(REMOTE_ROW) : screen == POWER ? mainPlace(6) : 0;
                                 screen = MAIN;
                             }
                         }
@@ -915,7 +930,7 @@ public class SettingsActivity extends Activity {
             l.add(Ui.tr("Theme"));
             l.add(Ui.tr("My Photos"));
             l.add(Ui.tr("Navigation sounds"));
-            l.add(Ui.tr("Weather widget"));
+            l.add(Ui.tr("Weather"));
             l.add(Ui.tr("City"));
             return l.toArray(new String[0]);
         }
@@ -954,7 +969,7 @@ public class SettingsActivity extends Activity {
         private String need(int i) {
             switch (screen) {
                 case MAIN:
-                    return i == 5 ? Capabilities.NEED_REMOTE_BUTTONS : i == 6 ? Capabilities.NEED_ADB : null;
+                    return mainRow(i) == REMOTE_ROW ? Capabilities.NEED_REMOTE_BUTTONS : mainRow(i) == 6 ? Capabilities.NEED_ADB : null;
                 case POWER: {
                     int id = powerRows()[i];
                     return id == P_WHERE ? Capabilities.NEED_OVERLAY : null;
@@ -1531,31 +1546,31 @@ public class SettingsActivity extends Activity {
                 adjust(1);
                 invalidate();
                 return;
-            } else if (focus == 0) {
+            } else if (mainRow(focus) == 0) {
                 if (busy()) return;
                 screen = HOME_CHOICE;
                 focus = freeActive() ? 0 : 1;
-            } else if (focus == 1) {
+            } else if (mainRow(focus) == 1) {
                 pause();
                 activity.showPreview();
-            } else if (focus == 2) {
+            } else if (mainRow(focus) == 2) {
                 pages.clear();
                 openPage(SettingsPages.hub(host));
                 return;
-            } else if (focus == 3) {
+            } else if (mainRow(focus) == 3) {
                 openShelfEditor(false);
-            } else if (focus == 4) {
+            } else if (mainRow(focus) == 4) {
                 openShelfEditor(true);
-            } else if (focus == 5) {
+            } else if (mainRow(focus) == REMOTE_ROW) {
                 HomeMode.ensureRemoteService(c, 0);   // the buttons work from inside other apps through this service
                 loadApps();
                 screen = REMOTE_KEYS;
                 focus = 0;
-            } else if (focus == 6) {
+            } else if (mainRow(focus) == 6) {
                 pickScroll = 0;
                 screen = POWER;
                 focus = 0;
-            } else if (focus == 7) {
+            } else if (mainRow(focus) == 7) {
                 activity.startActivity(new Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             } else {
                 pages.clear();

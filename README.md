@@ -178,6 +178,7 @@ that one to Original, uninstall it, then install this one (see the changelog).
 ```bash
 ./build.sh                  # the APK
 tools/test.sh               # the plain-logic tests (JDK only)
+tools/release.sh 2.0.5 "what's new"   # version, tests, keyless APK, tag, push, GitHub release (needs gh)
 java tools/MakeArt.java .   # redraws the icon, the TV banner and a few glyphs
 ```
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **Updates from GitHub:** once a day iQTV+ checks for a newer release; the home screen says so once, and Settings ›
+  Personalize › About › Updates installs it (through the TV's own ADB, no prompt; your settings and keys stay).
+- **IMDb ratings:** with a free OMDb key (Settings › Personalize › Recommendations › OMDb key), the featured title shows
+  its IMDb rating next to the year.
+- **Search without Speak where the TV can't hear:** on TVs that hear only through the Google Assistant (OnePlus), the
+  first try hides Speak for good; Type and the suggestions stay.
+- **Cleaner:** Remote Buttons is gone from Settings on TVs without those buttons; the Weather setting is just "Weather";
+  Camera, File Manager, Smart Manager and Bluetooth Stereo are out of All Apps unless you put them in Your Apps; the
+  hidden crypto quotes are removed for good (a smaller app).
+- **Continue Watching on by default** (it only shows when you've started something); the other rows stay off.
+- **tools/release.sh** makes a release in one step.
+
 ## 2.0.4 — a lighter drawer
 
 - **No weather card in the bottom drawer:** the weather is in the top bar (the pill and its full forecast), so the

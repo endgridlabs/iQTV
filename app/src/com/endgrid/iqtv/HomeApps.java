@@ -147,6 +147,15 @@ final class HomeApps {
             "com.google.android.videos",            // Google Play Movies (discontinued)
             "com.disney.starplus",                  // Star+ (merged into Disney+)
             "com.tcl.exhibit"));                    // TCL: T-Exhibition
+    /**
+     * Tools few open from a home screen: out of "All Apps" unless you put them in Your Apps (Settings > Shelf still
+     * lists them, unlike HIDDEN).
+     */
+    private static final Set<String> TUCKED = new HashSet<>(java.util.Arrays.asList(
+            "com.heytap.tv.camera",                 // OnePlus: Camera
+            "com.heytap.tv.filebrowser",            // OnePlus: File Manager
+            "com.heytap.tv.assistant.oneplus",      // OnePlus: Smart Manager (cleaner)
+            "com.heytap.tv.btspeaker"));            // OnePlus: Bluetooth Stereo
 
     private static final Map<String, Bitmap> TILES = new HashMap<>();   // key → ready card
     private static final Map<String, Bitmap> LOGOS = new HashMap<>();   // key → colored logo with no background
@@ -445,6 +454,8 @@ final class HomeApps {
         skip.addAll(java.util.Arrays.asList(LIVE_TV_APPS));
         skip.add(c.getPackageName());
         skip.addAll(HIDDEN);
+        List<String> onShelf = shelfPackages(c);
+        for (String pkg : TUCKED) if (!onShelf.contains(pkg)) skip.add(pkg);
         List<Item> items = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (String[] app : launchable(c)) {

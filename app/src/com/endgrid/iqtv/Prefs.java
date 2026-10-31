@@ -142,13 +142,17 @@ final class Prefs {
     static boolean sounds() { return sp().getBoolean("sounds", true); }
     static void setSounds(boolean on) { put("sounds", on); }
 
-    // MARK: - Widgets and coins
+    // MARK: - Microphone and weather
+
+    /**
+     * The TV's microphone couldn't be opened (OnePlus TVs hear only through the remote, for the Google Assistant):
+     * Search then has no Speak. Saved without a settings change, so nothing redraws for it.
+     */
+    static boolean noMic() { return sp().getBoolean("noMic", false); }
+    static void setNoMic() { sp().edit().putBoolean("noMic", true).apply(); }
 
     static boolean weather() { return sp().getBoolean("weather", true); }
     static void setWeather(boolean on) { put("weather", on); }
-
-    /** The crypto quotes widget (Bitcoin, Ethereum, Solana): not in EndGrid iQTV+, so never shown nor fetched. */
-    static boolean quotes() { return false; }
 
     /** Your photos (Photos, sent from a computer) on the screensaver and behind the home screen, once imported. */
     static boolean photos() { return sp().getBoolean("photos", true); }
@@ -197,6 +201,15 @@ final class Prefs {
         return typed.isEmpty() ? Config.GEMINI_KEY.trim() : typed;
     }
     static void setGeminiKey(String key) { put("geminiKey", key.replaceAll("\\s", "")); }
+    static boolean geminiKeyTyped() { return app != null && !sp().getString("geminiKey", "").trim().isEmpty(); }
+
+    /** The OMDb key (each title's IMDb rating): typed on the TV, else config.properties'. */
+    static String omdbKey() {
+        String typed = app == null ? "" : sp().getString("omdbKey", "").trim();
+        return typed.isEmpty() ? Config.OMDB_KEY.trim() : typed;
+    }
+    static void setOmdbKey(String key) { put("omdbKey", key.replaceAll("\\s", "")); }
+    static boolean omdbKeyTyped() { return app != null && !sp().getString("omdbKey", "").trim().isEmpty(); }
 
     static boolean watchmodeKeyTyped() { return app != null && !sp().getString("watchmodeKey", "").trim().isEmpty(); }
     static void setWatchmodeKey(String key) { put("watchmodeKey", key.replaceAll("\\s", "")); }
@@ -255,9 +268,6 @@ final class Prefs {
     /** The album the screensaver shows (Photos.albums: a folder on the TV or a USB drive, or the computer's); "" all. */
     static String saverAlbum() { return sp().getString("saverAlbum", ""); }
     static void setSaverAlbum(String album) { put("saverAlbum", album); }
-
-    static boolean coin(int i) { return sp().getBoolean("coin" + i, true); }
-    static void setCoin(int i, boolean on) { put("coin" + i, on); }
 
     // MARK: - Shelf
 

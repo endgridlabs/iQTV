@@ -65,11 +65,12 @@ final class SearchPanel {
     }
 
     /**
-     * Draws it; `a` is its fade, `focus` the focused item, `text` the question so far, `state` what's happening and
-     * `message` the error or Gemini's word, `seconds` for the spinner and the listening pulse.
+     * Draws it; `a` is its fade, `focus` the focused item, `text` the question so far, `speak` whether Speak is offered
+     * (not where the TV can't hear), `state` what's happening and `message` the error or Gemini's word, `seconds` for
+     * the spinner and the listening pulse.
      */
-    void draw(Canvas c, float w, float h, float k, float a, int focus, String text, boolean typing, int state, String message,
-              float seconds) {
+    void draw(Canvas c, float w, float h, float k, float a, int focus, String text, boolean typing, boolean speak, int state,
+              String message, float seconds) {
         paints(k);
         int alpha = Math.round(255 * a);
         fill.setShader(null);
@@ -147,7 +148,7 @@ final class SearchPanel {
         float y = top + 310 * k, bh = 84 * k, x = left;
         String[] names = {state == LISTENING ? Ui.tr("Listening…") : Ui.tr("Speak"), Ui.tr("Type")};
         String[] syms = {"mic", "search"};
-        for (int i = 0; i < 2; i++) {
+        for (int i = speak ? 0 : 1; i < 2; i++) {
             float bw = 36 * k + 30 * k + 16 * k + button.measureText(names[i]) + 40 * k;
             r.set(x, y, x + bw, y + bh);
             boolean f = focus == i;
@@ -194,7 +195,9 @@ final class SearchPanel {
             c.drawText(fit(message, status, right - left), left, y, status);
         } else {
             status.setColor(Ui.alpha(Tokens.TEXT_DIM, a));
-            c.drawText(Ui.tr("OK chooses · Back closes"), left, y, status);
+            c.drawText(speak ? Ui.tr("OK chooses · Back closes")
+                    : fit(Ui.tr("OK chooses · Back closes · The remote's mic button opens the Google Assistant"), status, right - left),
+                    left, y, status);
         }
         footer.setAlpha(Math.round(0x99 * a));
         c.drawText(Gemini.on() ? Ui.tr("Gemini suggests; each title is checked on TMDB for where it streams in your country.")

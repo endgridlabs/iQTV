@@ -173,6 +173,23 @@ final class SettingsPages {
                 .show();
     }
 
+    /** The OMDb key, typed on the TV: each title then shows its IMDb rating. */
+    private static void askOmdbKey(Host host) {
+        EditText field = new EditText(host.activity());
+        field.setSingleLine(true);
+        field.setHint(Prefs.omdbKeyTyped() ? Ui.tr("A key is set: type a new one, or clear it") : Ui.tr("Free key from omdbapi.com"));
+        new AlertDialog.Builder(host.activity(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle(Ui.tr("OMDb key"))
+                .setView(field)
+                .setPositiveButton(Ui.tr("Save"), (d, which) -> {
+                    Prefs.setOmdbKey(field.getText().toString());
+                    Recs.get(host.activity()).refreshIfStale();   // the ratings are looked up now
+                    host.refresh();
+                })
+                .setNegativeButton(Ui.tr("Cancel"), null)
+                .show();
+    }
+
     private static void confirm(Host host, String question, String yes, Runnable then) {
         AlertDialog dialog = new AlertDialog.Builder(host.activity(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
                 .setTitle(question)
@@ -461,6 +478,10 @@ final class SettingsPages {
                                 : Prefs.watchmodeKey().isEmpty() ? Ui.tr("Not set") : Ui.tr("Built in"))
                         .hint(Ui.tr("Free from watchmode.com: Open goes to the title itself, not the app's home. OK to paste it."))
                         .ok(() -> askWatchmodeKey(host)));
+                out.add(new Opt(Ui.tr("OMDb key")).value(Prefs.omdbKeyTyped() ? Ui.tr("Set")
+                                : Prefs.omdbKey().isEmpty() ? Ui.tr("Not set") : Ui.tr("Built in"))
+                        .hint(Ui.tr("Free from omdbapi.com: each title shows its IMDb rating. OK to paste it."))
+                        .ok(() -> askOmdbKey(host)));
                 if (!Prefs.tmdbKey().isEmpty()) {
                     long at = recs.updatedAt();
                     String state = recs.refreshing() ? Ui.tr("Updating…")
@@ -694,6 +715,34 @@ final class SettingsPages {
                 }
                 out.add(new Opt(Brand.NAME).value(version).dim()
                         .hint(Ui.tr("A cinematic home screen for your TV, made by EndGrid Labs.")));
+                // Updates from GitHub Releases: OK installs a newer one, or checks again now.
+                Activity a = host.activity();
+                Updates.check(a, false, host::refresh);
+                String newer = Updates.available(a);
+                out.add(new Opt(Ui.tr("Updates"))
+                        .value(!Updates.status.isEmpty() ? Updates.status
+                                : newer.isEmpty() ? Ui.tr("Up to date") : Ui.trf("Update to {version}", "version", newer))
+                        .hint(newer.isEmpty() ? Ui.tr("Checked once a day on GitHub. OK checks now.")
+                                : Ui.tr("OK downloads and installs it; the home screen comes back by itself. Your settings stay."))
+                        .ok(() -> {
+                            if (Updates.available(a).isEmpty()) {
+                                Updates.check(a, true, () -> {
+                                    if (Updates.available(a).isEmpty()) {
+                                        android.widget.Toast.makeText(a, Ui.tr("EndGrid iQTV+ is up to date."), android.widget.Toast.LENGTH_SHORT).show();
+                                    }
+                                    host.refresh();
+                                });
+                            } else {
+                                Updates.install(a, host::refresh, error -> {
+                                    if (!error.isEmpty()) {
+                                        android.widget.Toast.makeText(a, Ui.trf("Couldn't update: {error}", "error", error),
+                                                android.widget.Toast.LENGTH_LONG).show();
+                                    }
+                                    host.refresh();
+                                });
+                            }
+                            host.refresh();
+                        }));
                 out.add(new Opt(Ui.tr("Made by")).value("EndGrid Labs").dim()
                         .hint(Ui.tr("Open, privacy-first software for the screens at home: endgrid.in")));
                 out.add(new Opt(Ui.tr("Website")).value("endgrid.in").dim()
