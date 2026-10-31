@@ -3785,26 +3785,20 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     /**
      * The titles the carousel goes through, never what you already watched: the services take turns (your order in
      * Settings > Streaming Apps, else Netflix, JioHotstar, Prime Video and ZEE5 first, then the rest), so one app's list
-     * doesn't fill it; on Home a movie and a show alternate (Movies and TV Shows have only theirs). Home shows what's
-     * new on your apps (New Releases, then the latest movies if that's short), never the all-time popular; Movies and
-     * TV Shows start with the new ones, then every other row, on or off.
+     * doesn't fill it; on Home a movie and a show alternate (Movies and TV Shows have only theirs). Every tab shows
+     * what's new on your apps (New Releases, then the latest movies if that's short), never the all-time popular or
+     * years-old titles: fewer titles rather than old ones.
      */
     private List<Recs.Pick> makeFeatured() {
         // Candidates, by service, in the rows' order of preference.
         Map<String, List<Recs.Pick>> byService = new java.util.LinkedHashMap<>();
         java.util.Set<String> seen = new java.util.HashSet<>();
         List<Recs.Section> ordered = new ArrayList<>();
-        boolean home = shelfTab == TAB_HOME;
-        for (String id : home ? new String[] {"new"} : new String[] {"new", "latest", "featured", "web", "shows", "trending", "popular"}) {
-            for (Recs.Section s : heroSources) if (s.id.equals(id)) ordered.add(s);
-        }
+        for (Recs.Section s : heroSources) if (s.id.equals("new")) ordered.add(s);
         int newOnes = 0;
         for (Recs.Section s : ordered) for (Recs.Pick p : s.items) if (p.backdrop != null) newOnes++;
-        if (home && newOnes < HERO_FEATURED) {
+        if (newOnes < HERO_FEATURED) {
             for (Recs.Section s : heroSources) if (s.id.equals("latest")) ordered.add(s);
-        }
-        for (Recs.Section s : home ? new ArrayList<Recs.Section>() : heroSources) {
-            if (!ordered.contains(s) && !s.id.equals("continue") && !s.id.equals("recent") && !s.id.equals("search")) ordered.add(s);
         }
         for (Recs.Section s : ordered) {
             for (Recs.Pick p : s.items) {

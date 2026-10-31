@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Movies and TV Shows show only new titles too:** their featured titles come from the same new releases as Home
+  (never the all-time popular or older shows); a tab shows fewer titles rather than old ones.
+
 ## 2.0.2 — what's new on your apps, on a clean Home
 
 - **Home shows what's new:** the featured titles are the newest movies and shows on each of your apps (the last four

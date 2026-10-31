@@ -541,7 +541,8 @@ final class Recs {
             Pick p = byKey.get(k);
             if (p == null || !p.detailed || p.pkg == null || t.hidden.contains(k)) continue;
             if (!have.computeIfAbsent(p.pkg, this::installed) || seenBefore(t, p)) continue;
-            if (out.size() < ROW_MAX && franchises.add(franchise(p.title))) out.add(p);
+            // New Releases holds movies and shows of every app: twice as many, so Movies and TV Shows each have enough.
+            if (out.size() < (id.equals(NEW) ? 2 * ROW_MAX : ROW_MAX) && franchises.add(franchise(p.title))) out.add(p);
         }
         return out;
     }
