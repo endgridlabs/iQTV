@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.0.3 — only new titles on Movies and TV Shows
 
 - **Movies and TV Shows show only new titles too:** their featured titles come from the same new releases as Home
   (never the all-time popular or older shows); a tab shows fewer titles rather than old ones.
