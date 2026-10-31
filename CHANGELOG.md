@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.0.4 — a lighter drawer
 
 - **No weather card in the bottom drawer:** the weather is in the top bar (the pill and its full forecast), so the
   drawer under Your Apps has only Inputs and Shortcuts.
