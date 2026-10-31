@@ -1768,7 +1768,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             x += tw + gap;
         }
         float cardsTop = CARDS_TOP * k, split = left + (right - left) * 0.585f;
-        boolean wx = Prefs.weather(), qt = Prefs.quotes() && HomeData.active().length > 0;
+        // The weather lives in the top bar (its pill and panel): the drawer has no weather card.
+        boolean wx = false, qt = Prefs.quotes() && HomeData.active().length > 0;
         // A card that is off gives its room to the other one.
         weatherCard.set(left, cardsTop, qt ? split - 16 * k : right, cardsTop + CARDS_H * k);
         quotesCard.set(wx ? split + 16 * k : left, cardsTop, right, cardsTop + CARDS_H * k);
@@ -1844,7 +1845,6 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         for (int i = 0; i < drawerItems.size(); i++) if (drawerFocus[i].value > 0.02f && (top < 0 || drawerFocus[i].value > drawerFocus[top].value)) top = i;
         for (int i = 0; i < drawerItems.size(); i++) if (i != top) drawDrawerTile(c, i);
         if (top >= 0) drawDrawerTile(c, top);
-        if (Prefs.weather()) drawWeatherCard(c, weatherCard);
         if (Prefs.quotes() && HomeData.active().length > 0) drawQuotesCard(c, quotesCard);
     }
 
@@ -1882,44 +1882,6 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         drawerLabel.setTextSize(23 * k);
     }
 
-    /** Weather for your location: now (large), the next 6 hours, and sunrise and sunset. */
-    private void drawWeatherCard(Canvas c, RectF r) {
-        drawerCard(c, r);
-        if (Ui.LEGACY) weatherSnapshot.draw(c, r, drawerCardsKey(), cc -> drawWeather(cc, r));
-        else drawWeather(c, r);
-    }
-
-    private void drawWeather(Canvas c, RectF r) {
-        refreshDrawerText();
-        float x = r.left + 34 * k;
-        c.drawText(weatherTitle, x, r.top + 54 * k, cardTitle);
-        HomeData.Weather wx = textWeather;
-        if (Double.isNaN(wx.temp)) {
-            c.drawText(Ui.tr("No weather data right now."), x, r.top + 120 * k, cardDim);
-            return;
-        }
-        String symbol = Symbols.weather(wx.code, wx.isDay);
-        float sw = Symbols.width(getContext(), symbol, 52 * k);
-        Symbols.draw(getContext(), c, symbol, x + sw / 2, r.top + 132 * k, 52 * k, drawerInk(0.95f));
-        c.drawText(nowTemp, x + sw + 18 * k - Ui.leftBearing(bigTemp, nowTemp), r.top + 170 * k, bigTemp);
-        c.drawText(HomeData.condition(wx.code, wx.isDay), x, r.top + 220 * k, cardText);
-        c.drawText(highLow, x, r.top + 258 * k, cardDim);
-        float split = r.left + 392 * k;
-        fill.setShader(null);
-        fill.setColor(tone(0x1A000000, 0x24FFFFFF));
-        c.drawRoundRect(split - k, r.top + 34 * k, split + k, r.bottom - 34 * k, k, k, fill);
-        float hx = split + 30 * k, hw = (r.right - 30 * k - hx) / 6;
-        for (int i = 0; i < wx.hours.size() && i < 6; i++) {
-            float hc = hx + hw * (i + 0.5f);
-            c.drawText(hourText[i], hc, r.top + 96 * k, hourPaint);
-            Symbols.draw(getContext(), c, Symbols.weather(wx.hourCode.get(i), wx.hourDay.get(i)), hc, r.top + 142 * k, 30 * k, drawerInk(0.9f));
-            c.drawText(hourTempText[i], hc, r.top + 196 * k, hourTemp);
-        }
-        float sx = hx, base = r.top + 258 * k;
-        if (wx.sunrise != 0) sx = sunItem(c, "sunrise", sunriseText, sx, base) + 36 * k;
-        if (wx.sunset != 0) sunItem(c, "sunset", sunsetText, sx, base);
-    }
-
     private void refreshDrawerText() {
         HomeData.Weather wx = data.weather;
         boolean settings = Prefs.version != textPrefs || !Ui.language.equals(textLanguage);
@@ -1948,13 +1910,6 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 changeText[i] = HomeData.change(data.changes[i]);
             }
         }
-    }
-
-    private float sunItem(Canvas c, String symbol, String label, float x, float base) {
-        float size = 22 * k, sw = Symbols.width(getContext(), symbol, size);
-        Symbols.draw(getContext(), c, symbol, x + sw / 2, base - Ui.halfCap(cardDim), size, tone(L_DIM, 0xB3FFFFFF));
-        c.drawText(label, x + sw + 10 * k, base, cardDim);
-        return x + sw + 10 * k + cardDim.measureText(label);
     }
 
     /** Prices in the configured currency with the 24 h change (green/red, like Apple's Stocks app). */
@@ -1999,7 +1954,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         }
     }
 
-    private final Snapshot weatherSnapshot = new Snapshot(), quotesSnapshot = new Snapshot();
+    private final Snapshot quotesSnapshot = new Snapshot();
 
     private void drawPrices(Canvas c, RectF r) {
         float x = r.left + 34 * k, right = r.right - 34 * k;
@@ -2954,7 +2909,6 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         for (int i = 0; i < (TOP_SHELF ? cards.size() : Math.min(cardRects.length, cards.size())); i++) out.add(a11yId(Z_CARDS, i));
         for (int i = shelfFirst; i < Math.min(shelf.size(), shelfFirst + shelfVisible); i++) out.add(a11yId(Z_SHELF, i));
         for (int i = 0; i < drawerItems.size(); i++) out.add(a11yId(Z_DRAWER, i));
-        if (drawerOpen && Prefs.weather()) out.add(a11yId(WIDGETS, 0));
         if (drawerOpen && Prefs.quotes() && HomeData.active().length > 0) out.add(a11yId(WIDGETS, 1));
     }
 
@@ -3064,11 +3018,10 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         }
     }
 
-    /** The drawer's widgets that are on (0 weather, 1 quotes), with the drawer open. */
+    /** The drawer's widgets that are on (1 quotes; the weather is in the top bar), with the drawer open. */
     private List<Integer> widgets() {
         List<Integer> out = new ArrayList<>();
         if (!drawerOpen) return out;
-        if (Prefs.weather()) out.add(0);
         if (Prefs.quotes() && HomeData.active().length > 0) out.add(1);
         return out;
     }

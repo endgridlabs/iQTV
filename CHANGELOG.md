@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **No weather card in the bottom drawer:** the weather is in the top bar (the pill and its full forecast), so the
+  drawer under Your Apps has only Inputs and Shortcuts.
+
 ## 2.0.3 — only new titles on Movies and TV Shows
 
 - **Movies and TV Shows show only new titles too:** their featured titles come from the same new releases as Home
